@@ -3,148 +3,37 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Gameboard – Pontuação</title>
+  <title>Gameboard – Pontuação (Idoso-friendly)</title>
   <link rel="stylesheet" href="game-scores.css">
 </head>
 <body>
   <div class="wrap">
-    <!-- Barra de contexto com chips e “+” -->
-    <div class="contextbar card" id="contextBar">
-      <div class="chips">
-        <span class="chip" id="chipTeacher">Professor: — <button class="chip-plus" id="chipTeacherPlus" title="Cadastrar/Selecionar professor">+</button></span>
-        <span class="chip" id="chipClass">Turma: — <button class="chip-plus" id="chipClassPlus" title="Criar/Selecionar turma">+</button></span>
-        <span class="chip" id="chipGroup">Grupo: — <button class="chip-plus" id="chipGroupPlus" title="Criar/Selecionar grupo">+</button></span>
-        <span class="chip" id="chipMode">Modo: — <button class="chip-plus" id="chipModePlus" title="Escolher modo de pontuação">+</button></span>
-      </div>
-      <button class="btn blue" id="toggleSetup">Ocultar configuração</button>
-    </div>
-
-    <!-- WIZARD -->
-    <div class="card" id="setupCard">
-      <h1 style="margin:0 0 6px">Bem-vindo, Professor!</h1>
-      <p class="muted" id="wizardIntro">Selecione seu nome abaixo, ou cadastre-se no botão <b>“Cadastrar professor +”</b>.</p>
-
-      <div class="wizard">
-        <!-- Passo 1: Professor -->
-        <section class="step" id="stepTeacher">
-          <h2>1) Professor</h2>
-          <div class="row">
-            <select id="teacherSelect" style="min-width:260px"></select>
-            <button class="btn green plus" id="btnCreateTeacher">Cadastrar professor +</button>
-          </div>
-          <div class="row hidden" id="teacherCreateRow">
-            <input id="newTeacher" placeholder="Seu nome completo"/>
-            <select id="modeSelect" title="Tipo de pontuação (pode mudar depois)">
-              <option value="mixed">Misto (5/5)</option>
-              <option value="group">Grupo (10/0)</option>
-              <option value="individual">Individual (0/10)</option>
-            </select>
-            <button class="btn green" id="confirmCreateTeacher">Criar sala</button>
-          </div>
-          <div class="row">
-            <button class="btn blue" id="goStep2">Continuar</button>
-          </div>
-        </section>
-
-        <!-- Passo 2: Turma -->
-        <section class="step hidden" id="stepClass">
-          <h2>2) Turma</h2>
-          <div class="row">
-            <select id="classSelect" style="min-width:260px"></select>
-            <button class="btn green plus" id="btnCreateClass">Cadastrar turma +</button>
-          </div>
-          <div class="row hidden" id="classCreateRow">
-            <input id="newClass" placeholder="Ex.: 3º Ano Fundamental"/>
-            <button class="btn green" id="confirmCreateClass">Criar</button>
-          </div>
-          <div class="row">
-            <button class="btn blue" id="goStep3">Continuar</button>
-          </div>
-        </section>
-
-        <!-- Passo 3: Grupo -->
-        <section class="step hidden" id="stepGroup">
-          <h2>3) Grupo</h2>
-          <div class="row">
-            <input id="groupName" placeholder="Nome do grupo"/>
-            <input id="groupImage" placeholder="URL da imagem (opcional)"/>
-            <button class="btn green" id="confirmCreateGroup">Cadastrar grupo</button>
-          </div>
-          <div class="muted">Ou <a id="uploadLink" href="#" target="_blank">enviar imagem pelo formulário</a>.</div>
-          <div class="row">
-            <select id="groupSelect" style="min-width:260px"></select>
-            <button class="btn purple plus" id="btnMoreGroup">Criar mais um grupo +</button>
-          </div>
-          <div class="row">
-            <button class="btn blue" id="goStep4">Continuar</button>
-          </div>
-        </section>
-
-        <!-- Passo 4: Modo de pontuação -->
-        <section class="step hidden" id="stepMode">
-          <h2>4) Como deseja avaliar?</h2>
-          <div class="mode-grid">
-            <button class="mode-card" data-mode="group">
-              <div class="mode-title">Grupo</div>
-              <div class="mode-desc">Nota (0–10) por grupo</div>
-            </button>
-            <button class="mode-card" data-mode="individual">
-              <div class="mode-title">Individual</div>
-              <div class="mode-desc">Nota (0–10) por aluno</div>
-            </button>
-            <button class="mode-card" data-mode="mixed">
-              <div class="mode-title">Misto</div>
-              <div class="mode-desc">Categorias + apresentação (soma 10)</div>
-            </button>
-          </div>
-          <div class="muted" id="weightsInfo">Pesos atuais: 5/5</div>
-          <div class="row">
-            <button class="btn blue" id="goStep5">Continuar</button>
-          </div>
-        </section>
-
-        <!-- Passo 5: Alunos -->
-        <section class="step hidden" id="stepStudents">
-          <h2>5) Alunos do grupo</h2>
-          <div id="studentInputs"></div>
-          <div class="row">
-            <button class="btn green plus" id="addStudentField">Adicionar aluno +</button>
-          </div>
-          <div class="row">
-            <button class="btn green" id="confirmStudents">Enviar</button>
-            <button class="btn purple" id="finishWizard">Finalizar / Ir para pontuação</button>
-            <button class="btn blue" id="moreGroupFromStudents">Criar outro grupo</button>
-          </div>
-        </section>
-      </div>
-    </div>
-
-    <!-- ÁREA DE PONTUAÇÃO (fica depois do wizard) -->
-    <div class="card" id="scoreCard">
-      <h2 style="margin:0 0 8px">Pontuação</h2>
+    <!-- Área de pontuação (fica oculta até terminar o assistente) -->
+    <div class="card" id="scoreCard" style="display:none">
+      <h2 class="title-xl">Pontuação</h2>
       <div class="row">
         <div style="flex:1">
-          <label>Grupo</label>
-          <select id="scoreGroup"></select>
+          <label class="label-lg">Grupo</label>
+          <select id="scoreGroup" class="big-select"></select>
         </div>
         <div style="flex:1">
-          <label>Seu nome (opcional)</label>
-          <input id="teacherNameLocal" placeholder="Ex.: Prof. Bruno"/>
+          <label class="label-lg">Seu nome (opcional)</label>
+          <input id="teacherNameLocal" class="big-input" placeholder="Ex.: Prof. Bruno"/>
         </div>
       </div>
 
-      <h2>Quatro categorias (0–10)</h2>
+      <h3 class="title-lg">Quatro categorias (0–10)</h3>
       <div class="grid4">
-        <div><label>Visual</label><input type="number" id="c1" min="0" max="10" step="0.1"/></div>
-        <div><label>Trilha Sonora</label><input type="number" id="c2" min="0" max="10" step="0.1"/></div>
-        <div><label>Proposta</label><input type="number" id="c3" min="0" max="10" step="0.1"/></div>
-        <div><label>Vocabulário/Roteiro</label><input type="number" id="c4" min="0" max="10" step="0.1"/></div>
+        <div><label class="label-lg">Visual</label><input type="number" id="c1" min="0" max="10" step="0.1" class="big-input"/></div>
+        <div><label class="label-lg">Trilha Sonora</label><input type="number" id="c2" min="0" max="10" step="0.1" class="big-input"/></div>
+        <div><label class="label-lg">Proposta</label><input type="number" id="c3" min="0" max="10" step="0.1" class="big-input"/></div>
+        <div><label class="label-lg">Vocabulário/Roteiro</label><input type="number" id="c4" min="0" max="10" step="0.1" class="big-input"/></div>
       </div>
 
-      <h2>Apresentação por aluno (0–10)</h2>
+      <h3 class="title-lg">Apresentação por aluno (0–10)</h3>
       <div id="studentsBox" class="students"></div>
 
-      <h2>Resumo</h2>
+      <h3 class="title-lg">Resumo</h3>
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
         <div class="badge">Média 4 categorias: <b id="avgCats">0</b></div>
         <div class="badge">Média apresentação: <b id="avgPres">0</b></div>
@@ -152,15 +41,121 @@
         <div class="badge">Pontuação da rodada (0–10): <b id="finalRound">0</b></div>
       </div>
 
-      <div style="margin-top:12px;display:flex;gap:12px;align-items:center;">
-        <button class="btn green" id="submitScoreBtn">Salvar pontuação</button>
+      <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
+        <button class="btn green btn-lg" id="submitScoreBtn">Salvar pontuação</button>
         <span class="muted" id="msg"></span>
       </div>
     </div>
   </div>
 
-  <!-- MODAL DE PROGRESSO -->
-  <div class="modal hidden" id="progressModal" role="dialog" aria-live="assertive" aria-modal="true">
+  <!-- BOTÃO FLUTUANTE para reabrir o assistente -->
+  <button class="fab blue" id="openWizardFab" title="Configurar">⚙️</button>
+
+  <!-- ASSISTENTE EM TELA CHEIA (uma etapa por vez) -->
+  <div class="wizard-overlay" id="wizard" aria-modal="true" role="dialog">
+    <div class="wizard-box">
+      <div class="wizard-head">
+        <div class="wizard-title" id="wizTitle">Bem-vindo, Professor!</div>
+        <div class="wizard-sub" id="wizSub">Selecione seu nome abaixo, ou clique em <b>Cadastrar professor +</b>.</div>
+      </div>
+
+      <!-- ETAPA 1: Professor -->
+      <section class="wiz-step" id="step-1">
+        <div class="field">
+          <label class="label-xl">Professor</label>
+          <select id="teacherSelect" class="big-select"></select>
+        </div>
+        <div class="row">
+          <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
+        </div>
+        <div class="field hidden" id="teacherCreateRow">
+          <input id="newTeacher" class="big-input" placeholder="Seu nome completo"/>
+          <select id="modeSelect" class="big-select">
+            <option value="mixed">Misto (5/5)</option>
+            <option value="group">Grupo (10/0)</option>
+            <option value="individual">Individual (0/10)</option>
+          </select>
+          <button class="btn green btn-lg" id="confirmCreateTeacher">Criar sala</button>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn blue btn-lg" id="next-1">Continuar →</button>
+        </div>
+      </section>
+
+      <!-- ETAPA 2: Turma -->
+      <section class="wiz-step hidden" id="step-2">
+        <div class="field">
+          <label class="label-xl">Turma</label>
+          <select id="classSelect" class="big-select"></select>
+        </div>
+        <div class="row">
+          <button class="btn green btn-lg" id="btnCreateClass">Cadastrar turma +</button>
+        </div>
+        <div class="field hidden" id="classCreateRow">
+          <input id="newClass" class="big-input" placeholder="Ex.: 3º Ano Fundamental"/>
+          <button class="btn green btn-lg" id="confirmCreateClass">Criar</button>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn btn-lg" id="back-2">← Voltar</button>
+          <button class="btn blue btn-lg" id="next-2">Continuar →</button>
+        </div>
+      </section>
+
+      <!-- ETAPA 3: Grupo -->
+      <section class="wiz-step hidden" id="step-3">
+        <div class="field">
+          <label class="label-xl">Nome do grupo</label>
+          <input id="groupName" class="big-input" placeholder="Ex.: Vingadores"/>
+        </div>
+        <div class="field">
+          <label class="label-xl">Foto (URL opcional)</label>
+          <input id="groupImage" class="big-input" placeholder="Cole o link da imagem (Drive/Imgur)…"/>
+          <div class="muted">Ou <a id="uploadLink" href="#" target="_blank">enviar imagem pelo formulário</a>.</div>
+        </div>
+        <div class="row">
+          <button class="btn green btn-lg" id="confirmCreateGroup">Cadastrar grupo</button>
+        </div>
+        <div class="field">
+          <label class="label-xl">Selecionar grupo existente</label>
+          <select id="groupSelect" class="big-select"></select>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn btn-lg" id="back-3">← Voltar</button>
+          <button class="btn blue btn-lg" id="next-3">Continuar →</button>
+        </div>
+      </section>
+
+      <!-- ETAPA 4: Modo -->
+      <section class="wiz-step hidden" id="step-4">
+        <div class="mode-grid">
+          <button class="mode-card" data-mode="group"><div class="mode-title">Grupo</div><div class="mode-desc">Nota por grupo (0–10)</div></button>
+          <button class="mode-card" data-mode="individual"><div class="mode-title">Individual</div><div class="mode-desc">Nota por aluno (0–10)</div></button>
+          <button class="mode-card" data-mode="mixed"><div class="mode-title">Misto</div><div class="mode-desc">Categorias + apresentação (soma 10)</div></button>
+        </div>
+        <div class="muted" id="weightsInfo">Pesos atuais: 5/5</div>
+        <div class="wiz-nav">
+          <button class="btn btn-lg" id="back-4">← Voltar</button>
+          <button class="btn blue btn-lg" id="next-4">Continuar →</button>
+        </div>
+      </section>
+
+      <!-- ETAPA 5: Alunos -->
+      <section class="wiz-step hidden" id="step-5">
+        <div id="studentInputs"></div>
+        <div class="row">
+          <button class="btn green btn-lg" id="addStudentField">Adicionar aluno +</button>
+        </div>
+        <div class="wiz-nav">
+          <button class="btn btn-lg" id="back-5">← Voltar</button>
+          <button class="btn green btn-lg" id="confirmStudents">Salvar alunos</button>
+          <button class="btn purple btn-lg" id="finishWizard">Finalizar • Ir para pontuação</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Modal de progresso (reaproveitado) -->
+  <div class="modal hidden" id="progressModal" role="alertdialog" aria-live="assertive" aria-modal="true">
     <div class="modal-box">
       <div class="modal-title" id="progressTitle">Processando…</div>
       <div class="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
@@ -190,13 +185,18 @@ let CLASSES = [];
 let GROUPS = [];
 let WEIGHTS = {cat:5, ind:5};
 
-// --------- Modal de progresso ---------
+function driveDirect(viewUrl){
+  const m = String(viewUrl||'').match(/\/d\/([a-zA-Z0-9_-]{20,})\//);
+  if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
+  return viewUrl;
+}
+
+// ------- Progress modal -------
 function showProgress(title, sub){
   el('progressTitle').textContent = title || 'Processando…';
   el('progressSub').textContent = sub || 'Aguarde um instante.';
   el('progressBar').style.width = '0%';
   el('progressModal').classList.remove('hidden');
-  // anima até 100%
   let pct = 0;
   return new Promise(resolve=>{
     const t = setInterval(()=>{
@@ -208,44 +208,50 @@ function showProgress(title, sub){
 }
 function hideProgress(){ el('progressModal').classList.add('hidden'); }
 
-// --------- Chips/updaters ----------
-function updateChips(){
-  el('chipTeacher').firstChild.textContent = 'Professor: ' + (TEACHER || '—') + ' ';
-  const klass = el('classSelect').value || '—';
-  el('chipClass').firstChild.textContent = 'Turma: ' + klass + ' ';
-  const gid = el('scoreGroup').value || (GROUPS[0] && GROUPS[0].id) || '—';
-  const gname = (GROUPS.find(g=>g.id===gid)||{}).name || '—';
-  el('chipGroup').firstChild.textContent = 'Grupo: ' + gname + ' ';
-  el('chipMode').firstChild.textContent = 'Modo: ' + (WEIGHTS.cat===10?'grupo':WEIGHTS.ind===10?'individual':'misto') + ' ';
+// ------- Wizard helpers -------
+let STEP = 1;
+function showStep(n){
+  STEP = n;
+  ['step-1','step-2','step-3','step-4','step-5'].forEach(id=> el(id).classList.add('hidden'));
+  el(`step-${n}`).classList.remove('hidden');
+  const titles = {
+    1:'Bem-vindo, Professor!',
+    2:'Cadastre ou escolha sua turma',
+    3:'Cadastre um grupo (ou escolha um)',
+    4:'Como você vai avaliar?',
+    5:'Adicione os alunos'
+  };
+  const subs = {
+    1:'Selecione seu nome abaixo, ou clique em Cadastrar professor +.',
+    2:'Um nome simples ajuda: ex. “1 Ano A”, “3º Ano Fundamental”…',
+    3:'Dica: você pode colar a URL da foto (Drive/Imgur).',
+    4:'Grupo, Individual ou Misto (soma 10).',
+    5:'Clique em “Adicionar aluno +” para incluir novos campos.'
+  };
+  el('wizTitle').textContent = titles[n];
+  el('wizSub').innerHTML = subs[n];
+  window.scrollTo({ top: 0, behavior:'smooth' });
+}
+function closeWizard(){
+  el('wizard').style.display = 'none';
+  el('scoreCard').style.display = '';
+  window.scrollTo({ top: 0, behavior:'smooth' });
+}
+function reopenWizard(){
+  el('wizard').style.display = '';
+  el('scoreCard').style.display = 'none';
+  showStep(1);
 }
 
-// --------- Wizard helpers ----------
-function goStep(idToShow){
-  ['stepTeacher','stepClass','stepGroup','stepMode','stepStudents'].forEach(id=>{
-    el(id).classList.toggle('hidden', id!==idToShow);
-  });
-  window.scrollTo({ top: el('setupCard').offsetTop - 12, behavior:'smooth' });
-  updateChips();
-}
-function driveDirect(viewUrl){
-  const m = String(viewUrl||'').match(/\/d\/([a-zA-Z0-9_-]{20,})\//);
-  if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
-  return viewUrl;
-}
-
-// --------- API calls ----------
+// ------- API ------
 async function loadTeachers(){
   const data = await jsonp(`${API_BASE}?route=teachers`);
   const sel = el('teacherSelect'); sel.innerHTML='';
-  (data.teachers||[]).forEach(t=>{
-    const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
-  });
+  (data.teachers||[]).forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o); });
   const saved = localStorage.getItem('teacherId');
   if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
   TEACHER = sel.value || null;
-  updateChips();
 }
-
 async function createTeacher(name, mode){
   await showProgress('Criando sala do professor…','Preparando planilha no Drive');
   const res = await jsonp(`${API_BASE}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=${encodeURIComponent(mode)}`);
@@ -256,33 +262,25 @@ async function createTeacher(name, mode){
     el('teacherSelect').value = res.teacherId;
     TEACHER = res.teacherId;
     localStorage.setItem('teacherId', TEACHER);
-    updateChips();
     return true;
   }
   alert('Falha ao criar professor.');
   return false;
 }
-
 async function setScoring(mode){
   if (!TEACHER) return;
   await showProgress('Salvando modo de pontuação…');
   const res = await jsonp(`${API_BASE}?route=setScoring&teacher=${encodeURIComponent(TEACHER)}&mode=${encodeURIComponent(mode)}`);
   hideProgress();
-  if (res && res.ok){ WEIGHTS = res.weights || {cat:5,ind:5}; updateChips(); }
+  if (res && res.ok){ WEIGHTS = res.weights || {cat:5,ind:5}; el('weightsInfo').textContent = `Pesos atuais: ${WEIGHTS.cat}/${WEIGHTS.ind}`; }
 }
-
 async function loadClasses(){
   if (!TEACHER) return;
   const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
   CLASSES = data.classes||[];
   const sel = el('classSelect'); sel.innerHTML='';
   CLASSES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
-  const saved = localStorage.getItem('className');
-  if (saved && CLASSES.includes(saved)) sel.value=saved;
-  updateChips();
-  await loadGroups();
 }
-
 async function createClass(cname){
   await showProgress('Criando turma…');
   await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(cname)}`);
@@ -290,25 +288,19 @@ async function createClass(cname){
   await loadClasses();
   el('classSelect').value = cname;
   localStorage.setItem('className', cname);
-  updateChips();
 }
-
 async function loadGroups(){
   if (!TEACHER) return;
   const klass = el('classSelect').value || '';
   const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}`);
   GROUPS = data.groups||[];
-  // para criação + pontuação
   [el('groupSelect'), el('scoreGroup')].forEach(sel=>{
-    sel.innerHTML='';
-    GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });
+    sel.innerHTML=''; GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });
   });
-  updateChips();
-  renderStudentsForScore();
   updateUploadLink();
+  renderStudentsForScore();
   compute();
 }
-
 async function addGroup(name, imageURL){
   const klass = el('classSelect').value || '';
   await showProgress('Criando grupo…');
@@ -317,13 +309,11 @@ async function addGroup(name, imageURL){
   await loadGroups();
   const g = GROUPS.find(x=>x.name===name) || GROUPS[GROUPS.length-1];
   if (g){ el('groupSelect').value = g.id; el('scoreGroup').value = g.id; }
-  updateChips();
 }
-
 async function addStudentsToCurrent(names){
   const klass = el('classSelect').value || '';
   const gid = el('groupSelect').value || '';
-  if (!gid) { alert('Selecione um grupo.'); return false; }
+  if (!gid){ alert('Selecione um grupo.'); return false; }
   await showProgress('Adicionando alunos…');
   await jsonp(`${API_BASE}?route=addStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&students=${encodeURIComponent(JSON.stringify(names))}`);
   hideProgress();
@@ -331,23 +321,23 @@ async function addStudentsToCurrent(names){
   return true;
 }
 
-// --------- Pontuação ----------
+// ------- Pontuação -------
 function renderStudentsForScore(){
   const gid = el('scoreGroup').value || (GROUPS[0] && GROUPS[0].id);
   const g = GROUPS.find(x=>x.id===gid) || {members:[]};
   const box = el('studentsBox'); box.innerHTML='';
   (g.members||[]).forEach(name=>{
-    const d = document.createElement('div'); d.textContent = name;
-    const i = document.createElement('input'); i.type='number'; i.min='0'; i.max='10'; i.step='0.1'; i.dataset.pres='1'; i.placeholder='0–10';
+    const d = document.createElement('div'); d.textContent = name; d.className='label-lg';
+    const i = document.createElement('input'); i.type='number'; i.min='0'; i.max='10'; i.step='0.1'; i.dataset.pres='1'; i.placeholder='0–10'; i.className='big-input';
     i.addEventListener('input', compute);
     box.appendChild(d); box.appendChild(i);
   });
 }
 function compute(){
-  const cats = ['c1','c2','c3','c4'].map(id=> clamp10(el(id).value));
+  const cats = ['c1','c2','c3','c4'].map(id=> Math.max(0, Math.min(10, parseFloat(el(id).value)||0 )));
   const avgCats = (cats[0]+cats[1]+cats[2]+cats[3]) / 4;
   const presInputs = document.querySelectorAll('#studentsBox [data-pres]');
-  const presVals = Array.from(presInputs).map(i=>clamp10(i.value)).filter(v=>!Number.isNaN(v));
+  const presVals = Array.from(presInputs).map(i=>Math.max(0, Math.min(10, parseFloat(i.value)||0 ))).filter(v=>!Number.isNaN(v));
   const avgPres = presVals.length ? presVals.reduce((a,b)=>a+b,0)/presVals.length : 0;
   el('avgCats').textContent = round2(avgCats);
   el('avgPres').textContent = round2(avgPres);
@@ -359,9 +349,9 @@ async function submitScore(){
   const klass = el('classSelect').value || '';
   const gid = el('scoreGroup').value || '';
   if (!gid){ alert('Selecione o grupo.'); return; }
-  const cats = ['c1','c2','c3','c4'].map(id=> clamp10(el(id).value));
+  const cats = ['c1','c2','c3','c4'].map(id=> Math.max(0, Math.min(10, parseFloat(el(id).value)||0 )) );
   const pres = Array.from(document.querySelectorAll('#studentsBox [data-pres]'))
-    .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: clamp10(inp.value) }))
+    .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: Math.max(0, Math.min(10, parseFloat(inp.value)||0 )) }))
     .filter(p=>!isNaN(p.score));
   await showProgress('Salvando pontuação…');
   const data = await jsonp(`${API_BASE}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&c1=${cats[0]}&c2=${cats[1]}&c3=${cats[2]}&c4=${cats[3]}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}&presentations=${encodeURIComponent(JSON.stringify(pres))}`);
@@ -380,21 +370,21 @@ function updateUploadLink(){
   el('uploadLink').href = `${API_BASE}?route=uploadForm&teacher=${encodeURIComponent(TEACHER||'')}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid||el('groupName').value||'')}`;
 }
 
-// --------- Eventos do wizard ----------
+// ------- Eventos do assistente -------
 el('btnCreateTeacher').addEventListener('click', ()=> el('teacherCreateRow').classList.toggle('hidden'));
 el('confirmCreateTeacher').addEventListener('click', async ()=>{
   const name = el('newTeacher').value.trim();
   const mode = el('modeSelect').value;
   if (!name){ alert('Informe seu nome.'); return; }
   const ok = await createTeacher(name, mode);
-  if (ok){ await setScoring(mode); await loadClasses(); goStep('stepClass'); }
+  if (ok){ await setScoring(mode); await loadClasses(); showStep(2); }
 });
-el('goStep2').addEventListener('click', async ()=>{
+el('next-1').addEventListener('click', async ()=>{
   TEACHER = el('teacherSelect').value || null;
   if (!TEACHER){ alert('Selecione um professor.'); return; }
   localStorage.setItem('teacherId', TEACHER);
   await loadClasses();
-  goStep('stepClass');
+  showStep(2);
 });
 
 el('btnCreateClass').addEventListener('click', ()=> el('classCreateRow').classList.toggle('hidden'));
@@ -402,32 +392,36 @@ el('confirmCreateClass').addEventListener('click', async ()=>{
   const cname = el('newClass').value.trim();
   if (!cname){ alert('Informe a turma.'); return; }
   await createClass(cname);
-  goStep('stepGroup');
+  showStep(3);
 });
-el('goStep3').addEventListener('click', ()=> goStep('stepGroup'));
+el('back-2').addEventListener('click', ()=> showStep(1));
+el('next-2').addEventListener('click', async ()=>{
+  if (!el('classSelect').value){ alert('Escolha uma turma.'); return; }
+  await loadGroups();
+  showStep(3);
+});
 
 el('confirmCreateGroup').addEventListener('click', async ()=>{
   const name = el('groupName').value.trim();
   await addGroup(name, el('groupImage').value.trim());
   el('groupName').value=''; el('groupImage').value='';
 });
-el('btnMoreGroup').addEventListener('click', ()=> el('groupName').focus());
-el('goStep4').addEventListener('click', ()=> goStep('stepMode'));
+el('back-3').addEventListener('click', ()=> showStep(2));
+el('next-3').addEventListener('click', ()=> showStep(4));
 
 document.querySelectorAll('.mode-card').forEach(btn=>{
   btn.addEventListener('click', async ()=>{
     const mode = btn.dataset.mode;
     await setScoring(mode);
-    el('weightsInfo').textContent = `Pesos atuais: ${WEIGHTS.cat}/${WEIGHTS.ind}`;
   });
 });
-el('goStep5').addEventListener('click', ()=> goStep('stepStudents'));
+el('back-4').addEventListener('click', ()=> showStep(3));
+el('next-4').addEventListener('click', ()=> showStep(5));
 
 function addStudentField(value=''){
-  const wrap = document.createElement('div');
-  wrap.className='row';
-  const inp = document.createElement('input'); inp.placeholder='Nome do aluno'; inp.value=value;
-  const del = document.createElement('button'); del.className='btn red'; del.textContent='–'; del.title='Remover';
+  const wrap = document.createElement('div'); wrap.className='field row';
+  const inp = document.createElement('input'); inp.className='big-input'; inp.placeholder='Nome do aluno'; inp.value=value;
+  const del = document.createElement('button'); del.className='btn red btn-lg'; del.textContent='–'; del.title='Remover';
   del.addEventListener('click', ()=> wrap.remove());
   wrap.appendChild(inp); wrap.appendChild(del);
   el('studentInputs').appendChild(wrap);
@@ -437,38 +431,25 @@ el('confirmStudents').addEventListener('click', async ()=>{
   const names = Array.from(el('studentInputs').querySelectorAll('input')).map(i=>i.value.trim()).filter(Boolean);
   if (!names.length){ alert('Adicione pelo menos um aluno.'); return; }
   const ok = await addStudentsToCurrent(names);
-  if (ok){ el('studentInputs').innerHTML=''; alert('Alunos adicionados com sucesso!'); }
+  if (ok){ el('studentInputs').innerHTML=''; alert('Alunos salvos!'); }
 });
 el('finishWizard').addEventListener('click', ()=>{
-  el('setupCard').classList.add('hidden');
-  el('toggleSetup').textContent = 'Mostrar configuração';
-  window.scrollTo({ top: el('scoreCard').offsetTop - 10, behavior:'smooth' });
+  closeWizard();
 });
-el('moreGroupFromStudents').addEventListener('click', ()=> { goStep('stepGroup'); });
 
-// Score events
+// Reabrir assistente
+el('openWizardFab').addEventListener('click', ()=> reopenWizard());
+
+// Pontuação
 ['c1','c2','c3','c4'].forEach(id=> el(id).addEventListener('input', compute));
-el('scoreGroup').addEventListener('change', ()=>{ renderStudentsForScore(); compute(); updateChips(); });
-el('classSelect').addEventListener('change', async ()=>{ localStorage.setItem('className', el('classSelect').value); await loadGroups(); updateChips(); });
-el('confirmCreateGroup').addEventListener('click', updateUploadLink);
-el('groupSelect').addEventListener('change', updateUploadLink);
+el('scoreGroup').addEventListener('change', ()=>{ renderStudentsForScore(); compute(); });
 el('submitScoreBtn').addEventListener('click', submitScore);
-
-// Botões da context bar
-el('chipTeacherPlus').addEventListener('click', ()=> goStep('stepTeacher'));
-el('chipClassPlus').addEventListener('click', ()=> goStep('stepClass'));
-el('chipGroupPlus').addEventListener('click', ()=> goStep('stepGroup'));
-el('chipModePlus').addEventListener('click', ()=> goStep('stepMode'));
-el('toggleSetup').addEventListener('click', ()=>{
-  const hidden = el('setupCard').classList.toggle('hidden');
-  el('toggleSetup').textContent = hidden ? 'Mostrar configuração' : 'Ocultar configuração';
-});
 
 // Init
 (async function init(){
-  // por padrão mostra Step 1
-  el('scoreCard').classList.remove('hidden'); // área de pontuação já visível
+  // começa SEMPRE no assistente
   await loadTeachers();
+  showStep(1);
 })();
 </script>
 </body>

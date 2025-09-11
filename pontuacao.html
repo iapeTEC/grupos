@@ -3,79 +3,128 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Pontuação de Grupos</title>
+  <title>Gameboard – Pontuação</title>
   <link rel="stylesheet" href="game-scores.css">
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <div class="row2">
-        <h1 style="margin:0;">🏁 Pontuação – <span id="classLabel">–</span></h1>
-        <select id="classSelect" style="max-width:280px;margin-left:auto;"></select>
+    <!-- Barra de contexto com chips e “+” -->
+    <div class="contextbar card" id="contextBar">
+      <div class="chips">
+        <span class="chip" id="chipTeacher">Professor: — <button class="chip-plus" id="chipTeacherPlus" title="Cadastrar/Selecionar professor">+</button></span>
+        <span class="chip" id="chipClass">Turma: — <button class="chip-plus" id="chipClassPlus" title="Criar/Selecionar turma">+</button></span>
+        <span class="chip" id="chipGroup">Grupo: — <button class="chip-plus" id="chipGroupPlus" title="Criar/Selecionar grupo">+</button></span>
+        <span class="chip" id="chipMode">Modo: — <button class="chip-plus" id="chipModePlus" title="Escolher modo de pontuação">+</button></span>
       </div>
+      <button class="btn blue" id="toggleSetup">Ocultar configuração</button>
+    </div>
 
-      <!-- Painel de Setup (Professor / Modo / Turma / Estrutura) -->
-      <h2>Configuração rápida</h2>
-      <div class="row">
-        <div style="flex:1;min-width:260px">
-          <label>Professor (selecione ou crie)</label>
-          <div class="row" style="gap:8px;margin:0">
-            <select id="teacherSelect" style="min-width:220px"></select>
-            <input id="newTeacher" placeholder="Novo professor (nome)"/>
-            <select id="modeSelect" title="Tipo de pontuação">
-              <option value="mixed">Misto (5+5)</option>
-              <option value="group">Grupo (10+0)</option>
-              <option value="individual">Individual (0+10)</option>
+    <!-- WIZARD -->
+    <div class="card" id="setupCard">
+      <h1 style="margin:0 0 6px">Bem-vindo, Professor!</h1>
+      <p class="muted" id="wizardIntro">Selecione seu nome abaixo, ou cadastre-se no botão <b>“Cadastrar professor +”</b>.</p>
+
+      <div class="wizard">
+        <!-- Passo 1: Professor -->
+        <section class="step" id="stepTeacher">
+          <h2>1) Professor</h2>
+          <div class="row">
+            <select id="teacherSelect" style="min-width:260px"></select>
+            <button class="btn green plus" id="btnCreateTeacher">Cadastrar professor +</button>
+          </div>
+          <div class="row hidden" id="teacherCreateRow">
+            <input id="newTeacher" placeholder="Seu nome completo"/>
+            <select id="modeSelect" title="Tipo de pontuação (pode mudar depois)">
+              <option value="mixed">Misto (5/5)</option>
+              <option value="group">Grupo (10/0)</option>
+              <option value="individual">Individual (0/10)</option>
             </select>
-            <button class="btn green" id="createTeacherBtn">Criar sala</button>
+            <button class="btn green" id="confirmCreateTeacher">Criar sala</button>
           </div>
-          <div class="muted" id="weightsInfo"></div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div style="flex:1;min-width:260px">
-          <label>Turma</label>
-          <div class="row" style="gap:8px;margin:0">
-            <input id="newClass" placeholder="Ex.: 3 Ano Fundamental"/>
-            <button class="btn blue" id="createClassBtn">Criar turma</button>
+          <div class="row">
+            <button class="btn blue" id="goStep2">Continuar</button>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <h2>Estrutura: grupos e alunos</h2>
-      <div class="row">
-        <div style="flex:1;min-width:260px">
-          <label>Novo grupo</label>
-          <div class="row" style="gap:8px;margin:0">
+        <!-- Passo 2: Turma -->
+        <section class="step hidden" id="stepClass">
+          <h2>2) Turma</h2>
+          <div class="row">
+            <select id="classSelect" style="min-width:260px"></select>
+            <button class="btn green plus" id="btnCreateClass">Cadastrar turma +</button>
+          </div>
+          <div class="row hidden" id="classCreateRow">
+            <input id="newClass" placeholder="Ex.: 3º Ano Fundamental"/>
+            <button class="btn green" id="confirmCreateClass">Criar</button>
+          </div>
+          <div class="row">
+            <button class="btn blue" id="goStep3">Continuar</button>
+          </div>
+        </section>
+
+        <!-- Passo 3: Grupo -->
+        <section class="step hidden" id="stepGroup">
+          <h2>3) Grupo</h2>
+          <div class="row">
             <input id="groupName" placeholder="Nome do grupo"/>
-            <input id="groupImage" placeholder="URL da imagem (Drive/Imgur)…"/>
-            <button class="btn purple" id="addGroupBtn">Adicionar grupo</button>
+            <input id="groupImage" placeholder="URL da imagem (opcional)"/>
+            <button class="btn green" id="confirmCreateGroup">Cadastrar grupo</button>
           </div>
-          <div class="muted">
-            Dica: se for link do Drive “/file/d/ID/view…”, basta colar — convertermos para “uc?export=view&id=ID”.
-            <br/>Ou <a id="uploadLink" href="#" target="_blank">enviar imagem pelo formulário</a>.
+          <div class="muted">Ou <a id="uploadLink" href="#" target="_blank">enviar imagem pelo formulário</a>.</div>
+          <div class="row">
+            <select id="groupSelect" style="min-width:260px"></select>
+            <button class="btn purple plus" id="btnMoreGroup">Criar mais um grupo +</button>
           </div>
-        </div>
+          <div class="row">
+            <button class="btn blue" id="goStep4">Continuar</button>
+          </div>
+        </section>
+
+        <!-- Passo 4: Modo de pontuação -->
+        <section class="step hidden" id="stepMode">
+          <h2>4) Como deseja avaliar?</h2>
+          <div class="mode-grid">
+            <button class="mode-card" data-mode="group">
+              <div class="mode-title">Grupo</div>
+              <div class="mode-desc">Nota (0–10) por grupo</div>
+            </button>
+            <button class="mode-card" data-mode="individual">
+              <div class="mode-title">Individual</div>
+              <div class="mode-desc">Nota (0–10) por aluno</div>
+            </button>
+            <button class="mode-card" data-mode="mixed">
+              <div class="mode-title">Misto</div>
+              <div class="mode-desc">Categorias + apresentação (soma 10)</div>
+            </button>
+          </div>
+          <div class="muted" id="weightsInfo">Pesos atuais: 5/5</div>
+          <div class="row">
+            <button class="btn blue" id="goStep5">Continuar</button>
+          </div>
+        </section>
+
+        <!-- Passo 5: Alunos -->
+        <section class="step hidden" id="stepStudents">
+          <h2>5) Alunos do grupo</h2>
+          <div id="studentInputs"></div>
+          <div class="row">
+            <button class="btn green plus" id="addStudentField">Adicionar aluno +</button>
+          </div>
+          <div class="row">
+            <button class="btn green" id="confirmStudents">Enviar</button>
+            <button class="btn purple" id="finishWizard">Finalizar / Ir para pontuação</button>
+            <button class="btn blue" id="moreGroupFromStudents">Criar outro grupo</button>
+          </div>
+        </section>
       </div>
+    </div>
 
-      <div class="row">
-        <div style="flex:1;min-width:260px">
-          <label>Adicionar alunos ao grupo</label>
-          <div class="row" style="gap:8px;margin:0">
-            <select id="groupSelect" style="min-width:220px"></select>
-            <textarea id="studentList" placeholder="Um nome por linha" style="width:100%;height:100px"></textarea>
-          </div>
-          <button class="btn blue" id="addStudentsBtn" style="margin-top:8px">Adicionar alunos</button>
-        </div>
-      </div>
-
-      <hr style="border:0;border-top:1px solid #262a32;margin:20px 0"/>
-
-      <!-- Área de pontuação (igual antes, agora 0..10 e com pesos que fecham em 10) -->
+    <!-- ÁREA DE PONTUAÇÃO (fica depois do wizard) -->
+    <div class="card" id="scoreCard">
+      <h2 style="margin:0 0 8px">Pontuação</h2>
       <div class="row">
         <div style="flex:1">
-          <label>Selecione o grupo para pontuar</label>
+          <label>Grupo</label>
           <select id="scoreGroup"></select>
         </div>
         <div style="flex:1">
@@ -103,10 +152,19 @@
         <div class="badge">Pontuação da rodada (0–10): <b id="finalRound">0</b></div>
       </div>
 
-      <div style="margin-top:14px;display:flex;gap:12px;align-items:center;">
+      <div style="margin-top:12px;display:flex;gap:12px;align-items:center;">
         <button class="btn green" id="submitScoreBtn">Salvar pontuação</button>
         <span class="muted" id="msg"></span>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE PROGRESSO -->
+  <div class="modal hidden" id="progressModal" role="dialog" aria-live="assertive" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-title" id="progressTitle">Processando…</div>
+      <div class="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+      <div class="modal-sub" id="progressSub">Aguarde um instante.</div>
     </div>
   </div>
 
@@ -123,62 +181,94 @@ function jsonp(url){
     document.body.appendChild(s);
   });
 }
-function el(id){ return document.getElementById(id); }
-function clamp10(v){ const x=parseFloat(v); if (isNaN(x)) return 0; return Math.max(0, Math.min(10, x)); }
-function round2(x){ return Math.round(x*100)/100; }
+const el = id => document.getElementById(id);
+const clamp10 = v => Math.max(0, Math.min(10, parseFloat(v)||0));
+const round2 = x => Math.round(x*100)/100;
 
 let TEACHER = null;
 let CLASSES = [];
 let GROUPS = [];
 let WEIGHTS = {cat:5, ind:5};
 
+// --------- Modal de progresso ---------
+function showProgress(title, sub){
+  el('progressTitle').textContent = title || 'Processando…';
+  el('progressSub').textContent = sub || 'Aguarde um instante.';
+  el('progressBar').style.width = '0%';
+  el('progressModal').classList.remove('hidden');
+  // anima até 100%
+  let pct = 0;
+  return new Promise(resolve=>{
+    const t = setInterval(()=>{
+      pct += 12 + Math.random()*10;
+      if (pct >= 100){ pct = 100; clearInterval(t); setTimeout(resolve, 250); }
+      el('progressBar').style.width = pct + '%';
+    }, 120);
+  });
+}
+function hideProgress(){ el('progressModal').classList.add('hidden'); }
+
+// --------- Chips/updaters ----------
+function updateChips(){
+  el('chipTeacher').firstChild.textContent = 'Professor: ' + (TEACHER || '—') + ' ';
+  const klass = el('classSelect').value || '—';
+  el('chipClass').firstChild.textContent = 'Turma: ' + klass + ' ';
+  const gid = el('scoreGroup').value || (GROUPS[0] && GROUPS[0].id) || '—';
+  const gname = (GROUPS.find(g=>g.id===gid)||{}).name || '—';
+  el('chipGroup').firstChild.textContent = 'Grupo: ' + gname + ' ';
+  el('chipMode').firstChild.textContent = 'Modo: ' + (WEIGHTS.cat===10?'grupo':WEIGHTS.ind===10?'individual':'misto') + ' ';
+}
+
+// --------- Wizard helpers ----------
+function goStep(idToShow){
+  ['stepTeacher','stepClass','stepGroup','stepMode','stepStudents'].forEach(id=>{
+    el(id).classList.toggle('hidden', id!==idToShow);
+  });
+  window.scrollTo({ top: el('setupCard').offsetTop - 12, behavior:'smooth' });
+  updateChips();
+}
 function driveDirect(viewUrl){
   const m = String(viewUrl||'').match(/\/d\/([a-zA-Z0-9_-]{20,})\//);
   if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
   return viewUrl;
 }
 
+// --------- API calls ----------
 async function loadTeachers(){
   const data = await jsonp(`${API_BASE}?route=teachers`);
   const sel = el('teacherSelect'); sel.innerHTML='';
   (data.teachers||[]).forEach(t=>{
     const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
   });
-  // mantém última escolha
   const saved = localStorage.getItem('teacherId');
   if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
-  TEACHER = sel.value || '';
+  TEACHER = sel.value || null;
+  updateChips();
 }
 
-async function createTeacher(){
-  const name = el('newTeacher').value.trim();
-  const mode = el('modeSelect').value;
-  if (!name) { alert('Informe o nome do professor.'); return; }
+async function createTeacher(name, mode){
+  await showProgress('Criando sala do professor…','Preparando planilha no Drive');
   const res = await jsonp(`${API_BASE}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=${encodeURIComponent(mode)}`);
+  hideProgress();
   if (res && res.ok){
+    WEIGHTS = res.weights || {cat:5,ind:5};
     await loadTeachers();
     el('teacherSelect').value = res.teacherId;
     TEACHER = res.teacherId;
     localStorage.setItem('teacherId', TEACHER);
-    WEIGHTS = res.weights || {cat:5, ind:5};
-    el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
-    el('weightsInfo').textContent = `Modo: ${mode} — pesos categorias/individual: ${WEIGHTS.cat}/${WEIGHTS.ind} (soma 10)`;
-    await loadClasses();
-  }else{
-    alert('Falha ao criar sala.');
+    updateChips();
+    return true;
   }
+  alert('Falha ao criar professor.');
+  return false;
 }
 
-async function setScoringMode(){
-  const mode = el('modeSelect').value;
+async function setScoring(mode){
   if (!TEACHER) return;
+  await showProgress('Salvando modo de pontuação…');
   const res = await jsonp(`${API_BASE}?route=setScoring&teacher=${encodeURIComponent(TEACHER)}&mode=${encodeURIComponent(mode)}`);
-  if (res && res.ok){
-    WEIGHTS = res.weights || {cat:5,ind:5};
-    el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
-    el('weightsInfo').textContent = `Modo: ${mode} — pesos categorias/individual: ${WEIGHTS.cat}/${WEIGHTS.ind} (soma 10)`;
-    compute(); // atualiza preview
-  }
+  hideProgress();
+  if (res && res.ok){ WEIGHTS = res.weights || {cat:5,ind:5}; updateChips(); }
 }
 
 async function loadClasses(){
@@ -188,70 +278,60 @@ async function loadClasses(){
   const sel = el('classSelect'); sel.innerHTML='';
   CLASSES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
   const saved = localStorage.getItem('className');
-  if (saved && CLASSES.includes(saved)) sel.value = saved;
-  el('classLabel').textContent = sel.value || data.defaultClass || '1 Ano A';
+  if (saved && CLASSES.includes(saved)) sel.value=saved;
+  updateChips();
   await loadGroups();
 }
 
-async function createClass(){
-  if (!TEACHER) { alert('Escolha/crie um professor primeiro.'); return; }
-  const c = el('newClass').value.trim();
-  if (!c) { alert('Informe o nome da turma.'); return; }
-  await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`);
-  el('newClass').value='';
+async function createClass(cname){
+  await showProgress('Criando turma…');
+  await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(cname)}`);
+  hideProgress();
   await loadClasses();
-  el('classSelect').value = c;
-  el('classLabel').textContent = c;
-  localStorage.setItem('className', c);
-  await loadGroups();
+  el('classSelect').value = cname;
+  localStorage.setItem('className', cname);
+  updateChips();
 }
 
 async function loadGroups(){
   if (!TEACHER) return;
-  const klass = el('classSelect').value || el('classLabel').textContent;
+  const klass = el('classSelect').value || '';
   const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}`);
   GROUPS = data.groups||[];
-
-  // selects de grupo
-  const sels = [el('groupSelect'), el('scoreGroup')];
-  sels.forEach(sel => { sel.innerHTML=''; GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); }); });
-
-  // alunos na área de pontuação
+  // para criação + pontuação
+  [el('groupSelect'), el('scoreGroup')].forEach(sel=>{
+    sel.innerHTML='';
+    GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });
+  });
+  updateChips();
   renderStudentsForScore();
   updateUploadLink();
   compute();
 }
 
-function updateUploadLink(){
-  const klass = el('classSelect').value || el('classLabel').textContent;
-  const gid = el('scoreGroup').value || '';
-  const url = `${API_BASE}?route=uploadForm&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid||el('groupName').value||'')}`;
-  el('uploadLink').href = url;
-}
-
-async function addGroup(){
-  if (!TEACHER) { alert('Escolha o professor.'); return; }
-  const klass = el('classSelect').value || el('classLabel').textContent;
-  const name = el('groupName').value.trim();
-  if (!name) { alert('Nome do grupo obrigatório.'); return; }
-  const img = driveDirect(el('groupImage').value.trim());
-  await jsonp(`${API_BASE}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupName=${encodeURIComponent(name)}&imageURL=${encodeURIComponent(img)}`);
-  el('groupName').value=''; el('groupImage').value='';
+async function addGroup(name, imageURL){
+  const klass = el('classSelect').value || '';
+  await showProgress('Criando grupo…');
+  await jsonp(`${API_BASE}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupName=${encodeURIComponent(name)}&imageURL=${encodeURIComponent(driveDirect(imageURL||''))}`);
+  hideProgress();
   await loadGroups();
+  const g = GROUPS.find(x=>x.name===name) || GROUPS[GROUPS.length-1];
+  if (g){ el('groupSelect').value = g.id; el('scoreGroup').value = g.id; }
+  updateChips();
 }
 
-async function addStudents(){
-  if (!TEACHER) { alert('Escolha o professor.'); return; }
-  const klass = el('classSelect').value || el('classLabel').textContent;
+async function addStudentsToCurrent(names){
+  const klass = el('classSelect').value || '';
   const gid = el('groupSelect').value || '';
-  const names = el('studentList').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if (!gid || !names.length){ alert('Selecione o grupo e adicione ao menos um aluno.'); return; }
-  const url = `${API_BASE}?route=addStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&students=${encodeURIComponent(JSON.stringify(names))}`;
-  await jsonp(url);
-  el('studentList').value='';
+  if (!gid) { alert('Selecione um grupo.'); return false; }
+  await showProgress('Adicionando alunos…');
+  await jsonp(`${API_BASE}?route=addStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+  hideProgress();
   await loadGroups();
+  return true;
 }
 
+// --------- Pontuação ----------
 function renderStudentsForScore(){
   const gid = el('scoreGroup').value || (GROUPS[0] && GROUPS[0].id);
   const g = GROUPS.find(x=>x.id===gid) || {members:[]};
@@ -263,36 +343,29 @@ function renderStudentsForScore(){
     box.appendChild(d); box.appendChild(i);
   });
 }
-
 function compute(){
   const cats = ['c1','c2','c3','c4'].map(id=> clamp10(el(id).value));
   const avgCats = (cats[0]+cats[1]+cats[2]+cats[3]) / 4;
   const presInputs = document.querySelectorAll('#studentsBox [data-pres]');
   const presVals = Array.from(presInputs).map(i=>clamp10(i.value)).filter(v=>!Number.isNaN(v));
   const avgPres = presVals.length ? presVals.reduce((a,b)=>a+b,0)/presVals.length : 0;
-
   el('avgCats').textContent = round2(avgCats);
   el('avgPres').textContent = round2(avgPres);
   el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
-  const final = (avgCats * (WEIGHTS.cat/10)) + (avgPres * (WEIGHTS.ind/10));
-  el('finalRound').textContent = round2(final);
+  el('finalRound').textContent = round2((avgCats*(WEIGHTS.cat/10)) + (avgPres*(WEIGHTS.ind/10)));
 }
-
 async function submitScore(){
-  if (!TEACHER){ alert('Escolha o professor.'); return; }
-  const klass = el('classSelect').value || el('classLabel').textContent;
+  if (!TEACHER){ alert('Selecione/cadastre um professor.'); return; }
+  const klass = el('classSelect').value || '';
   const gid = el('scoreGroup').value || '';
   if (!gid){ alert('Selecione o grupo.'); return; }
   const cats = ['c1','c2','c3','c4'].map(id=> clamp10(el(id).value));
   const pres = Array.from(document.querySelectorAll('#studentsBox [data-pres]'))
     .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: clamp10(inp.value) }))
     .filter(p=>!isNaN(p.score));
-  const url = `${API_BASE}?route=submitScore`
-    + `&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}`
-    + `&c1=${cats[0]}&c2=${cats[1]}&c3=${cats[2]}&c4=${cats[3]}`
-    + `&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}`
-    + `&presentations=${encodeURIComponent(JSON.stringify(pres))}`;
-  const data = await jsonp(url);
+  await showProgress('Salvando pontuação…');
+  const data = await jsonp(`${API_BASE}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&c1=${cats[0]}&c2=${cats[1]}&c3=${cats[2]}&c4=${cats[3]}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}&presentations=${encodeURIComponent(JSON.stringify(pres))}`);
+  hideProgress();
   if (data && data.ok){
     el('msg').innerHTML = `<span style="color:#22c55e">Salvo! Rodada = ${data.finalRound.toFixed(2)} (cat: ${data.avgCategories.toFixed(2)} / ind: ${data.presentationAvg.toFixed(2)})</span>`;
     document.querySelectorAll('#studentsBox [data-pres]').forEach(i=> i.value='');
@@ -301,26 +374,101 @@ async function submitScore(){
     el('msg').innerHTML = `<span style="color:#ef4444">Falha ao salvar.</span>`;
   }
 }
+function updateUploadLink(){
+  const klass = el('classSelect').value || '';
+  const gid = el('groupSelect').value || '';
+  el('uploadLink').href = `${API_BASE}?route=uploadForm&teacher=${encodeURIComponent(TEACHER||'')}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid||el('groupName').value||'')}`;
+}
 
-// Eventos
-el('createTeacherBtn').addEventListener('click', createTeacher);
-el('modeSelect').addEventListener('change', setScoringMode);
-el('createClassBtn').addEventListener('click', createClass);
-el('addGroupBtn').addEventListener('click', addGroup);
-el('addStudentsBtn').addEventListener('click', addStudents);
+// --------- Eventos do wizard ----------
+el('btnCreateTeacher').addEventListener('click', ()=> el('teacherCreateRow').classList.toggle('hidden'));
+el('confirmCreateTeacher').addEventListener('click', async ()=>{
+  const name = el('newTeacher').value.trim();
+  const mode = el('modeSelect').value;
+  if (!name){ alert('Informe seu nome.'); return; }
+  const ok = await createTeacher(name, mode);
+  if (ok){ await setScoring(mode); await loadClasses(); goStep('stepClass'); }
+});
+el('goStep2').addEventListener('click', async ()=>{
+  TEACHER = el('teacherSelect').value || null;
+  if (!TEACHER){ alert('Selecione um professor.'); return; }
+  localStorage.setItem('teacherId', TEACHER);
+  await loadClasses();
+  goStep('stepClass');
+});
+
+el('btnCreateClass').addEventListener('click', ()=> el('classCreateRow').classList.toggle('hidden'));
+el('confirmCreateClass').addEventListener('click', async ()=>{
+  const cname = el('newClass').value.trim();
+  if (!cname){ alert('Informe a turma.'); return; }
+  await createClass(cname);
+  goStep('stepGroup');
+});
+el('goStep3').addEventListener('click', ()=> goStep('stepGroup'));
+
+el('confirmCreateGroup').addEventListener('click', async ()=>{
+  const name = el('groupName').value.trim();
+  await addGroup(name, el('groupImage').value.trim());
+  el('groupName').value=''; el('groupImage').value='';
+});
+el('btnMoreGroup').addEventListener('click', ()=> el('groupName').focus());
+el('goStep4').addEventListener('click', ()=> goStep('stepMode'));
+
+document.querySelectorAll('.mode-card').forEach(btn=>{
+  btn.addEventListener('click', async ()=>{
+    const mode = btn.dataset.mode;
+    await setScoring(mode);
+    el('weightsInfo').textContent = `Pesos atuais: ${WEIGHTS.cat}/${WEIGHTS.ind}`;
+  });
+});
+el('goStep5').addEventListener('click', ()=> goStep('stepStudents'));
+
+function addStudentField(value=''){
+  const wrap = document.createElement('div');
+  wrap.className='row';
+  const inp = document.createElement('input'); inp.placeholder='Nome do aluno'; inp.value=value;
+  const del = document.createElement('button'); del.className='btn red'; del.textContent='–'; del.title='Remover';
+  del.addEventListener('click', ()=> wrap.remove());
+  wrap.appendChild(inp); wrap.appendChild(del);
+  el('studentInputs').appendChild(wrap);
+}
+el('addStudentField').addEventListener('click', ()=> addStudentField());
+el('confirmStudents').addEventListener('click', async ()=>{
+  const names = Array.from(el('studentInputs').querySelectorAll('input')).map(i=>i.value.trim()).filter(Boolean);
+  if (!names.length){ alert('Adicione pelo menos um aluno.'); return; }
+  const ok = await addStudentsToCurrent(names);
+  if (ok){ el('studentInputs').innerHTML=''; alert('Alunos adicionados com sucesso!'); }
+});
+el('finishWizard').addEventListener('click', ()=>{
+  el('setupCard').classList.add('hidden');
+  el('toggleSetup').textContent = 'Mostrar configuração';
+  window.scrollTo({ top: el('scoreCard').offsetTop - 10, behavior:'smooth' });
+});
+el('moreGroupFromStudents').addEventListener('click', ()=> { goStep('stepGroup'); });
+
+// Score events
+['c1','c2','c3','c4'].forEach(id=> el(id).addEventListener('input', compute));
+el('scoreGroup').addEventListener('change', ()=>{ renderStudentsForScore(); compute(); updateChips(); });
+el('classSelect').addEventListener('change', async ()=>{ localStorage.setItem('className', el('classSelect').value); await loadGroups(); updateChips(); });
+el('confirmCreateGroup').addEventListener('click', updateUploadLink);
+el('groupSelect').addEventListener('change', updateUploadLink);
 el('submitScoreBtn').addEventListener('click', submitScore);
-el('classSelect').addEventListener('change', async ()=>{
-  localStorage.setItem('className', el('classSelect').value);
-  el('classLabel').textContent = el('classSelect').value;
-  await loadGroups();
-});
-el('scoreGroup').addEventListener('change', ()=>{
-  renderStudentsForScore(); updateUploadLink(); compute();
+
+// Botões da context bar
+el('chipTeacherPlus').addEventListener('click', ()=> goStep('stepTeacher'));
+el('chipClassPlus').addEventListener('click', ()=> goStep('stepClass'));
+el('chipGroupPlus').addEventListener('click', ()=> goStep('stepGroup'));
+el('chipModePlus').addEventListener('click', ()=> goStep('stepMode'));
+el('toggleSetup').addEventListener('click', ()=>{
+  const hidden = el('setupCard').classList.toggle('hidden');
+  el('toggleSetup').textContent = hidden ? 'Mostrar configuração' : 'Ocultar configuração';
 });
 
+// Init
 (async function init(){
+  // por padrão mostra Step 1
+  el('scoreCard').classList.remove('hidden'); // área de pontuação já visível
   await loadTeachers();
-  if (TEACHER) { await loadClasses(); }
 })();
 </script>
 </body>

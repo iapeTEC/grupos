@@ -78,7 +78,7 @@ h2{ margin:18px 0 8px; font-size:16px; opacity:.95; }
 .name{ font-weight:700; }
 .total{ margin-left:auto; opacity:.9; font-variant-numeric: tabular-nums; }
 
-/* Barra de progresso */
+/* Barra de progresso (para o dashboard) */
 .bar{
   position:relative; height:18px;
   background: var(--bar-bg);
@@ -185,3 +185,67 @@ input:focus-visible, select:focus-visible{
   }
   .rank{ background:#0a0; color:white; }
 }
+
+/* === Wizard/Overlay + Idoso-friendly === */
+.hidden{ display:none !important; }
+
+/* tamanhos grandes */
+.title-xl{ font-size:26px; margin:0 0 8px; }
+.title-lg{ font-size:18px; margin:14px 0 6px; }
+.label-xl{ font-size:18px; display:block; margin-bottom:6px; }
+.label-lg{ font-size:16px; display:block; margin-bottom:4px; }
+.big-input, .big-select{ font-size:18px; padding:14px; border-radius:14px; }
+.btn-lg{ font-size:18px; padding:14px 18px; border-radius:14px; }
+
+/* overlay do assistente (tela cheia) */
+.wizard-overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.75);
+  display:flex; align-items:center; justify-content:center; z-index:9998;
+}
+.wizard-box{
+  width:min(720px, 96vw); max-height:90vh; overflow:auto;
+  background: var(--bg-elev); border:1px solid var(--border);
+  border-radius:18px; padding:20px; box-shadow: var(--shadow-lg);
+}
+.wizard-head{ margin-bottom:10px; }
+.wizard-title{ font-size:24px; font-weight:800; }
+.wizard-sub{ color:var(--muted); margin-top:4px; }
+.wiz-step{ margin-top:8px; }
+.field{ margin:10px 0; }
+.wiz-nav{ display:flex; justify-content:space-between; gap:10px; margin-top:8px; }
+
+/* cartões de escolha de modo */
+.mode-grid{
+  display:grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr));
+  gap:12px; margin:8px 0 4px;
+}
+.mode-card{
+  background:#111827; border:1px solid var(--border);
+  border-radius:14px; padding:14px; cursor:pointer; text-align:left;
+}
+.mode-card:hover{ filter:brightness(1.05); box-shadow: var(--shadow-md); }
+.mode-title{ font-weight:800; margin-bottom:6px; }
+.mode-desc{ color:var(--muted); font-size:12px; }
+
+/* modal de progresso (barra verde) */
+.modal{
+  position:fixed; inset:0; background:rgba(0,0,0,.55);
+  display:grid; place-items:center; z-index:9999;
+}
+.modal-box{
+  width:min(520px, 92vw); background:var(--bg-elev); border:1px solid var(--border);
+  border-radius:14px; padding:18px; box-shadow: var(--shadow-lg);
+}
+.modal-title{ font-weight:800; margin-bottom:10px; }
+.modal-sub{ color:var(--muted); margin-top:8px; }
+.progress{ height:12px; background:#0f1216; border:1px solid var(--border);
+  border-radius:999px; overflow:hidden; }
+.progress-bar{ height:100%; width:0%; background: linear-gradient(90deg, var(--green), #86efac); }
+
+/* botão flutuante para reabrir o assistente */
+.fab{
+  position:fixed; right:18px; bottom:18px;
+  padding:14px 16px; border-radius:999px; border:none; cursor:pointer;
+  box-shadow: 0 8px 20px rgba(0,0,0,.35);
+}
+.fab.blue{ background: var(--blue); color:#f0f9ff; }

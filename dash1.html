@@ -5,16 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Apresentação Games</title>
   <link rel="stylesheet" href="game-scores.css">
-
 </head>
 <body>
   <div class="wrap">
-    <h1>Apresentação – <span id="classLabel"></span></h1>
+    <h1>
+      Apresentação – <span id="teacherLabel">—</span>
+      <span class="muted">·</span> <span id="classLabel">—</span>
+    </h1>
+
     <div class="row">
-      <select id="classSelect"></select>
-      <button class="btn" id="printBtn">Imprimir / Salvar PDF</button>
+      <select id="teacherSelect" title="Professor"></select>
+      <select id="classSelect" title="Turma"></select>
+      <button class="btn blue" id="printBtn">Imprimir / Salvar PDF</button>
       <button class="btn red" id="resetBtn">Resetar Turma</button>
     </div>
+
     <div id="grid" class="grid"></div>
     <div id="msg" class="muted"></div>
   </div>
@@ -32,16 +37,18 @@ function jsonp(url){
     document.body.appendChild(s);
   });
 }
-function pct(x){ return Math.max(0, Math.min(100, Math.round(x))); }
 function el(id){ return document.getElementById(id); }
+function pct(x){ return Math.max(0, Math.min(100, Math.round(x))); }
+function param(name){ return new URLSearchParams(location.search).get(name); }
 
+let CURRENT_TEACHER = null;
 let CURRENT_CLASS = null;
 
 function card(g, idx){
   const p = pct(g.progress);
   const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
-  const el = document.createElement('div'); el.className='card';
-  el.innerHTML = `
+  const d = document.createElement('div'); d.className='card';
+  d.innerHTML = `
     <div class="head">
       <div class="rank">${idx+1}</div>
       <div class="name">${g.name}</div>
@@ -55,43 +62,83 @@ function card(g, idx){
     </div>
     <div class="members">${(g.members||[]).join(', ')}</div>
   `;
-  return el;
+  return d;
+}
+
+async function loadTeachers(){
+  try{
+    el('msg').textContent = 'Carregando professores...';
+    const data = await jsonp(`${API_BASE}?route=teachers`);
+    const teachers = data.teachers || [];
+    const sel = el('teacherSelect'); sel.innerHTML = '';
+    teachers.forEach(t=>{
+      const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
+    });
+
+    // escolhe teacher: URL > localStorage > primeiro
+    const urlTeacher = param('teacher');
+    const saved = localStorage.getItem('selectedTeacher');
+    CURRENT_TEACHER = urlTeacher || saved || (teachers[0] && teachers[0].id) || null;
+    if (CURRENT_TEACHER && teachers.some(t=>t.id===CURRENT_TEACHER)) sel.value = CURRENT_TEACHER;
+    else { CURRENT_TEACHER = teachers[0] ? teachers[0].id : null; if (CURRENT_TEACHER) sel.value=CURRENT_TEACHER; }
+
+    el('teacherLabel').textContent = (teachers.find(t=>t.id===CURRENT_TEACHER)||{}).name || '—';
+    el('msg').textContent = teachers.length ? '' : 'Nenhum professor cadastrado. Cadastre no scoring.';
+  }catch(err){
+    el('msg').textContent = 'Erro ao carregar professores: ' + err.message;
+  }
 }
 
 async function loadClasses(){
+  const selClass = el('classSelect'); selClass.innerHTML = '';
+  if (!CURRENT_TEACHER){
+    el('msg').textContent = 'Selecione um professor.';
+    el('classLabel').textContent = '—';
+    el('grid').innerHTML = '';
+    return;
+  }
   el('msg').textContent = 'Carregando turmas...';
-  const data = await jsonp(`${API_BASE}?route=classes`);
-  const classes = data.classes || [];
-  const sel = el('classSelect'); sel.innerHTML = '';
-  classes.forEach(c => {
-    const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
-  });
-  const urlClass = new URLSearchParams(location.search).get('class');
-  const saved = localStorage.getItem('selectedClass');
-  CURRENT_CLASS = urlClass || saved || data.defaultClass || classes[0] || '1 Ano A';
-  if (classes.includes(CURRENT_CLASS)) sel.value = CURRENT_CLASS;
-  else { sel.value = classes[0]; CURRENT_CLASS = classes[0]; }
-  el('classLabel').textContent = CURRENT_CLASS;
-  el('msg').textContent = '';
+  try{
+    const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(CURRENT_TEACHER)}`);
+    const classes = data.classes || [];
+    classes.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; selClass.appendChild(o); });
+
+    const urlClass = param('class');
+    const savedKey = `selectedClass_${CURRENT_TEACHER}`;
+    const saved = localStorage.getItem(savedKey);
+    CURRENT_CLASS = urlClass || saved || data.defaultClass || classes[0] || null;
+
+    if (CURRENT_CLASS && classes.includes(CURRENT_CLASS)) selClass.value = CURRENT_CLASS;
+    else { CURRENT_CLASS = classes[0] || null; if (CURRENT_CLASS) selClass.value = CURRENT_CLASS; }
+
+    el('classLabel').textContent = CURRENT_CLASS || '—';
+    el('msg').textContent = '';
+  }catch(err){
+    el('msg').textContent = 'Erro ao carregar turmas: ' + err.message;
+  }
 }
 
 async function loadStandings(){
+  const grid = el('grid'); grid.innerHTML = '';
+  if (!CURRENT_TEACHER || !CURRENT_CLASS){
+    el('msg').textContent = 'Selecione professor e turma.';
+    return;
+  }
   try{
-    const data = await jsonp(`${API_BASE}?route=standings&class=${encodeURIComponent(CURRENT_CLASS)}`);
-    const grid = el('grid'); grid.innerHTML='';
-    (data.standings||[]).forEach((g, i) => grid.appendChild(card(g, i)));
-    if ((data.standings||[]).length === 0) el('msg').textContent = 'Sem grupos para esta turma.';
-    else el('msg').textContent = '';
+    const data = await jsonp(`${API_BASE}?route=standings&teacher=${encodeURIComponent(CURRENT_TEACHER)}&class=${encodeURIComponent(CURRENT_CLASS)}`);
+    (data.standings||[]).forEach((g,i)=> grid.appendChild(card(g,i)));
+    el('msg').textContent = (data.standings||[]).length ? '' : 'Sem grupos para esta turma.';
   }catch(err){
-    el('msg').textContent = 'Erro ao carregar: '+err.message;
+    el('msg').textContent = 'Erro ao carregar: ' + err.message;
   }
 }
 
 async function resetClass(){
+  if (!CURRENT_TEACHER || !CURRENT_CLASS) { alert('Selecione professor e turma.'); return; }
   const ok = confirm('Você já salvou em PDF? Ao confirmar, TODOS os grupos, alunos e pontuações desta turma serão apagados.');
   if (!ok) return;
   try{
-    const res = await jsonp(`${API_BASE}?route=resetClass&class=${encodeURIComponent(CURRENT_CLASS)}&confirm=yes`);
+    const res = await jsonp(`${API_BASE}?route=resetClass&teacher=${encodeURIComponent(CURRENT_TEACHER)}&class=${encodeURIComponent(CURRENT_CLASS)}&confirm=yes`);
     if (res && res.ok){
       alert(`Reset concluído para ${CURRENT_CLASS}.\nRemovidos: ${res.cleared.groups} grupos, ${res.cleared.members} alunos, ${res.cleared.scores} pontuações.`);
       loadStandings();
@@ -105,16 +152,26 @@ async function resetClass(){
   }
 }
 
+// eventos
+el('teacherSelect').addEventListener('change', async ()=>{
+  CURRENT_TEACHER = el('teacherSelect').value;
+  localStorage.setItem('selectedTeacher', CURRENT_TEACHER);
+  el('teacherLabel').textContent = el('teacherSelect').selectedOptions[0]?.textContent || '—';
+  await loadClasses();
+  await loadStandings();
+});
 el('classSelect').addEventListener('change', ()=>{
   CURRENT_CLASS = el('classSelect').value;
-  localStorage.setItem('selectedClass', CURRENT_CLASS);
-  el('classLabel').textContent = CURRENT_CLASS;
+  localStorage.setItem(`selectedClass_${CURRENT_TEACHER}`, CURRENT_CLASS);
+  el('classLabel').textContent = CURRENT_CLASS || '—';
   loadStandings();
 });
 el('printBtn').addEventListener('click', () => window.print());
 el('resetBtn').addEventListener('click', resetClass);
 
+// init
 (async function init(){
+  await loadTeachers();
   await loadClasses();
   await loadStandings();
   setInterval(loadStandings, 15000);

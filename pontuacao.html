@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Pontuação de Grupos</title>
+  <link rel="stylesheet" href="game-scores.css">
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row2">
+        <h1 style="margin:0;">🏁 Pontuação – <span id="classLabel">–</span></h1>
+        <select id="classSelect" style="max-width:280px;margin-left:auto;"></select>
+      </div>
+
+      <!-- Painel de Setup (Professor / Modo / Turma / Estrutura) -->
+      <h2>Configuração rápida</h2>
+      <div class="row">
+        <div style="flex:1;min-width:260px">
+          <label>Professor (selecione ou crie)</label>
+          <div class="row" style="gap:8px;margin:0">
+            <select id="teacherSelect" style="min-width:220px"></select>
+            <input id="newTeacher" placeholder="Novo professor (nome)"/>
+            <select id="modeSelect" title="Tipo de pontuação">
+              <option value="mixed">Misto (5+5)</option>
+              <option value="group">Grupo (10+0)</option>
+              <option value="individual">Individual (0+10)</option>
+            </select>
+            <button class="btn green" id="createTeacherBtn">Criar sala</button>
+          </div>
+          <div class="muted" id="weightsInfo"></div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:1;min-width:260px">
+          <label>Turma</label>
+          <div class="row" style="gap:8px;margin:0">
+            <input id="newClass" placeholder="Ex.: 3 Ano Fundamental"/>
+            <button class="btn blue" id="createClassBtn">Criar turma</button>
+          </div>
+        </div>
+      </div>
+
+      <h2>Estrutura: grupos e alunos</h2>
+      <div class="row">
+        <div style="flex:1;min-width:260px">
+          <label>Novo grupo</label>
+          <div class="row" style="gap:8px;margin:0">
+            <input id="groupName" placeholder="Nome do grupo"/>
+            <input id="groupImage" placeholder="URL da imagem (Drive/Imgur)…"/>
+            <button class="btn purple" id="addGroupBtn">Adicionar grupo</button>
+          </div>
+          <div class="muted">
+            Dica: se for link do Drive “/file/d/ID/view…”, basta colar — convertermos para “uc?export=view&id=ID”.
+            <br/>Ou <a id="uploadLink" href="#" target="_blank">enviar imagem pelo formulário</a>.
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <div style="flex:1;min-width:260px">
+          <label>Adicionar alunos ao grupo</label>
+          <div class="row" style="gap:8px;margin:0">
+            <select id="groupSelect" style="min-width:220px"></select>
+            <textarea id="studentList" placeholder="Um nome por linha" style="width:100%;height:100px"></textarea>
+          </div>
+          <button class="btn blue" id="addStudentsBtn" style="margin-top:8px">Adicionar alunos</button>
+        </div>
+      </div>
+
+      <hr style="border:0;border-top:1px solid #262a32;margin:20px 0"/>
+
+      <!-- Área de pontuação (igual antes, agora 0..10 e com pesos que fecham em 10) -->
+      <div class="row">
+        <div style="flex:1">
+          <label>Selecione o grupo para pontuar</label>
+          <select id="scoreGroup"></select>
+        </div>
+        <div style="flex:1">
+          <label>Seu nome (opcional)</label>
+          <input id="teacherNameLocal" placeholder="Ex.: Prof. Bruno"/>
+        </div>
+      </div>
+
+      <h2>Quatro categorias (0–10)</h2>
+      <div class="grid4">
+        <div><label>Visual</label><input type="number" id="c1" min="0" max="10" step="0.1"/></div>
+        <div><label>Trilha Sonora</label><input type="number" id="c2" min="0" max="10" step="0.1"/></div>
+        <div><label>Proposta</label><input type="number" id="c3" min="0" max="10" step="0.1"/></div>
+        <div><label>Vocabulário/Roteiro</label><input type="number" id="c4" min="0" max="10" step="0.1"/></div>
+      </div>
+
+      <h2>Apresentação por aluno (0–10)</h2>
+      <div id="studentsBox" class="students"></div>
+
+      <h2>Resumo</h2>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="badge">Média 4 categorias: <b id="avgCats">0</b></div>
+        <div class="badge">Média apresentação: <b id="avgPres">0</b></div>
+        <div class="badge">Pesos (cat/ind): <b id="weightsLabel">5/5</b></div>
+        <div class="badge">Pontuação da rodada (0–10): <b id="finalRound">0</b></div>
+      </div>
+
+      <div style="margin-top:14px;display:flex;gap:12px;align-items:center;">
+        <button class="btn green" id="submitScoreBtn">Salvar pontuação</button>
+        <span class="muted" id="msg"></span>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_BASE = 'https://script.google.com/macros/s/AKfycbyvXB3KIUFT0bzZSahb4xnBUqv3hHUqi1K51ofANY3QwlbBp1SYD-HFpD_Jra1AKkwC/exec';
+
+function jsonp(url){
+  return new Promise((resolve, reject)=>{
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    window[cb] = (data) => { resolve(data); delete window[cb]; s.remove(); };
+    s.onerror = () => { delete window[cb]; reject(new Error('Falha JSONP')); };
+    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    document.body.appendChild(s);
+  });
+}
+function el(id){ return document.getElementById(id); }
+function clamp10(v){ const x=parseFloat(v); if (isNaN(x)) return 0; return Math.max(0, Math.min(10, x)); }
+function round2(x){ return Math.round(x*100)/100; }
+
+let TEACHER = null;
+let CLASSES = [];
+let GROUPS = [];
+let WEIGHTS = {cat:5, ind:5};
+
+function driveDirect(viewUrl){
+  const m = String(viewUrl||'').match(/\/d\/([a-zA-Z0-9_-]{20,})\//);
+  if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
+  return viewUrl;
+}
+
+async function loadTeachers(){
+  const data = await jsonp(`${API_BASE}?route=teachers`);
+  const sel = el('teacherSelect'); sel.innerHTML='';
+  (data.teachers||[]).forEach(t=>{
+    const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
+  });
+  // mantém última escolha
+  const saved = localStorage.getItem('teacherId');
+  if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
+  TEACHER = sel.value || '';
+}
+
+async function createTeacher(){
+  const name = el('newTeacher').value.trim();
+  const mode = el('modeSelect').value;
+  if (!name) { alert('Informe o nome do professor.'); return; }
+  const res = await jsonp(`${API_BASE}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=${encodeURIComponent(mode)}`);
+  if (res && res.ok){
+    await loadTeachers();
+    el('teacherSelect').value = res.teacherId;
+    TEACHER = res.teacherId;
+    localStorage.setItem('teacherId', TEACHER);
+    WEIGHTS = res.weights || {cat:5, ind:5};
+    el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
+    el('weightsInfo').textContent = `Modo: ${mode} — pesos categorias/individual: ${WEIGHTS.cat}/${WEIGHTS.ind} (soma 10)`;
+    await loadClasses();
+  }else{
+    alert('Falha ao criar sala.');
+  }
+}
+
+async function setScoringMode(){
+  const mode = el('modeSelect').value;
+  if (!TEACHER) return;
+  const res = await jsonp(`${API_BASE}?route=setScoring&teacher=${encodeURIComponent(TEACHER)}&mode=${encodeURIComponent(mode)}`);
+  if (res && res.ok){
+    WEIGHTS = res.weights || {cat:5,ind:5};
+    el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
+    el('weightsInfo').textContent = `Modo: ${mode} — pesos categorias/individual: ${WEIGHTS.cat}/${WEIGHTS.ind} (soma 10)`;
+    compute(); // atualiza preview
+  }
+}
+
+async function loadClasses(){
+  if (!TEACHER) return;
+  const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
+  CLASSES = data.classes||[];
+  const sel = el('classSelect'); sel.innerHTML='';
+  CLASSES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+  const saved = localStorage.getItem('className');
+  if (saved && CLASSES.includes(saved)) sel.value = saved;
+  el('classLabel').textContent = sel.value || data.defaultClass || '1 Ano A';
+  await loadGroups();
+}
+
+async function createClass(){
+  if (!TEACHER) { alert('Escolha/crie um professor primeiro.'); return; }
+  const c = el('newClass').value.trim();
+  if (!c) { alert('Informe o nome da turma.'); return; }
+  await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`);
+  el('newClass').value='';
+  await loadClasses();
+  el('classSelect').value = c;
+  el('classLabel').textContent = c;
+  localStorage.setItem('className', c);
+  await loadGroups();
+}
+
+async function loadGroups(){
+  if (!TEACHER) return;
+  const klass = el('classSelect').value || el('classLabel').textContent;
+  const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}`);
+  GROUPS = data.groups||[];
+
+  // selects de grupo
+  const sels = [el('groupSelect'), el('scoreGroup')];
+  sels.forEach(sel => { sel.innerHTML=''; GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); }); });
+
+  // alunos na área de pontuação
+  renderStudentsForScore();
+  updateUploadLink();
+  compute();
+}
+
+function updateUploadLink(){
+  const klass = el('classSelect').value || el('classLabel').textContent;
+  const gid = el('scoreGroup').value || '';
+  const url = `${API_BASE}?route=uploadForm&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid||el('groupName').value||'')}`;
+  el('uploadLink').href = url;
+}
+
+async function addGroup(){
+  if (!TEACHER) { alert('Escolha o professor.'); return; }
+  const klass = el('classSelect').value || el('classLabel').textContent;
+  const name = el('groupName').value.trim();
+  if (!name) { alert('Nome do grupo obrigatório.'); return; }
+  const img = driveDirect(el('groupImage').value.trim());
+  await jsonp(`${API_BASE}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupName=${encodeURIComponent(name)}&imageURL=${encodeURIComponent(img)}`);
+  el('groupName').value=''; el('groupImage').value='';
+  await loadGroups();
+}
+
+async function addStudents(){
+  if (!TEACHER) { alert('Escolha o professor.'); return; }
+  const klass = el('classSelect').value || el('classLabel').textContent;
+  const gid = el('groupSelect').value || '';
+  const names = el('studentList').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!gid || !names.length){ alert('Selecione o grupo e adicione ao menos um aluno.'); return; }
+  const url = `${API_BASE}?route=addStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&students=${encodeURIComponent(JSON.stringify(names))}`;
+  await jsonp(url);
+  el('studentList').value='';
+  await loadGroups();
+}
+
+function renderStudentsForScore(){
+  const gid = el('scoreGroup').value || (GROUPS[0] && GROUPS[0].id);
+  const g = GROUPS.find(x=>x.id===gid) || {members:[]};
+  const box = el('studentsBox'); box.innerHTML='';
+  (g.members||[]).forEach(name=>{
+    const d = document.createElement('div'); d.textContent = name;
+    const i = document.createElement('input'); i.type='number'; i.min='0'; i.max='10'; i.step='0.1'; i.dataset.pres='1'; i.placeholder='0–10';
+    i.addEventListener('input', compute);
+    box.appendChild(d); box.appendChild(i);
+  });
+}
+
+function compute(){
+  const cats = ['c1','c2','c3','c4'].map(id=> clamp10(el(id).value));
+  const avgCats = (cats[0]+cats[1]+cats[2]+cats[3]) / 4;
+  const presInputs = document.querySelectorAll('#studentsBox [data-pres]');
+  const presVals = Array.from(presInputs).map(i=>clamp10(i.value)).filter(v=>!Number.isNaN(v));
+  const avgPres = presVals.length ? presVals.reduce((a,b)=>a+b,0)/presVals.length : 0;
+
+  el('avgCats').textContent = round2(avgCats);
+  el('avgPres').textContent = round2(avgPres);
+  el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
+  const final = (avgCats * (WEIGHTS.cat/10)) + (avgPres * (WEIGHTS.ind/10));
+  el('finalRound').textContent = round2(final);
+}
+
+async function submitScore(){
+  if (!TEACHER){ alert('Escolha o professor.'); return; }
+  const klass = el('classSelect').value || el('classLabel').textContent;
+  const gid = el('scoreGroup').value || '';
+  if (!gid){ alert('Selecione o grupo.'); return; }
+  const cats = ['c1','c2','c3','c4'].map(id=> clamp10(el(id).value));
+  const pres = Array.from(document.querySelectorAll('#studentsBox [data-pres]'))
+    .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: clamp10(inp.value) }))
+    .filter(p=>!isNaN(p.score));
+  const url = `${API_BASE}?route=submitScore`
+    + `&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}`
+    + `&c1=${cats[0]}&c2=${cats[1]}&c3=${cats[2]}&c4=${cats[3]}`
+    + `&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}`
+    + `&presentations=${encodeURIComponent(JSON.stringify(pres))}`;
+  const data = await jsonp(url);
+  if (data && data.ok){
+    el('msg').innerHTML = `<span style="color:#22c55e">Salvo! Rodada = ${data.finalRound.toFixed(2)} (cat: ${data.avgCategories.toFixed(2)} / ind: ${data.presentationAvg.toFixed(2)})</span>`;
+    document.querySelectorAll('#studentsBox [data-pres]').forEach(i=> i.value='');
+    compute();
+  }else{
+    el('msg').innerHTML = `<span style="color:#ef4444">Falha ao salvar.</span>`;
+  }
+}
+
+// Eventos
+el('createTeacherBtn').addEventListener('click', createTeacher);
+el('modeSelect').addEventListener('change', setScoringMode);
+el('createClassBtn').addEventListener('click', createClass);
+el('addGroupBtn').addEventListener('click', addGroup);
+el('addStudentsBtn').addEventListener('click', addStudents);
+el('submitScoreBtn').addEventListener('click', submitScore);
+el('classSelect').addEventListener('change', async ()=>{
+  localStorage.setItem('className', el('classSelect').value);
+  el('classLabel').textContent = el('classSelect').value;
+  await loadGroups();
+});
+el('scoreGroup').addEventListener('change', ()=>{
+  renderStudentsForScore(); updateUploadLink(); compute();
+});
+
+(async function init(){
+  await loadTeachers();
+  if (TEACHER) { await loadClasses(); }
+})();
+</script>
+</body>
+</html>

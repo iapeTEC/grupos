@@ -37,32 +37,76 @@ function jsonp(url){
     document.body.appendChild(s);
   });
 }
-function el(id){ return document.getElementById(id); }
-function pct(x){ return Math.max(0, Math.min(100, Math.round(x))); }
-function param(name){ return new URLSearchParams(location.search).get(name); }
+const el = id => document.getElementById(id);
+const pct = x => Math.max(0, Math.min(100, Math.round(x)));
 
 let CURRENT_TEACHER = null;
 let CURRENT_CLASS = null;
+let REFRESHING = false;
+let TIMER = null;
 
-function card(g, idx){
-  const p = pct(g.progress);
-  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
-  const d = document.createElement('div'); d.className='card';
+function cardSkeleton(id){
+  const d = document.createElement('div');
+  d.className = 'card';
+  d.dataset.id = id;
   d.innerHTML = `
     <div class="head">
-      <div class="rank">${idx+1}</div>
-      <div class="name">${g.name}</div>
-      <div class="total">${g.total.toFixed(2)} pts</div>
+      <div class="rank">–</div>
+      <div class="name">—</div>
+      <div class="total">0.00 pts</div>
     </div>
     <div class="bar">
-      <div class="fill" style="width:${p}%"></div>
-      <div class="runner" style="left: calc(${p}% - 17px)">
-        <img src="${img}" alt="${g.name}"/>
+      <div class="fill" style="width:0%"></div>
+      <div class="runner" style="left:-17px">
+        <img src="https://i.imgur.com/8Km9tLL.png" alt=""/>
       </div>
     </div>
-    <div class="members">${(g.members||[]).join(', ')}</div>
+    <div class="members"></div>
   `;
   return d;
+}
+
+function updateCard(dom, g, idx){
+  const p = pct(g.progress);
+  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
+  dom.querySelector('.rank').textContent = idx + 1;
+  dom.querySelector('.name').textContent = g.name;
+  dom.querySelector('.total').textContent = `${Number(g.total).toFixed(2)} pts`;
+  dom.querySelector('.fill').style.width = p + '%';
+  dom.querySelector('.runner').style.left = `calc(${p}% - 17px)`;
+  const pic = dom.querySelector('.runner img');
+  if (pic.src !== img) pic.src = img;
+  dom.querySelector('.members').textContent = (g.members||[]).join(', ');
+}
+
+function syncStandings(list){
+  const grid = el('grid');
+  const wantIds = list.map(g => g.id);
+  const have = new Map(Array.from(grid.children).map(n => [n.dataset.id, n]));
+
+  // Atualiza/Cria em ordem desejada (evita limpar a grade)
+  const frag = document.createDocumentFragment();
+  list.forEach((g, idx) => {
+    let node = have.get(g.id);
+    if (!node) {
+      node = cardSkeleton(g.id);
+      node.style.opacity = '0';
+      // entra suavemente
+      requestAnimationFrame(()=> node.style.opacity = '');
+    }
+    updateCard(node, g, idx);
+    frag.appendChild(node);
+    have.delete(g.id); // marca como processado
+  });
+
+  // Remove os que sobraram (não existem mais) com fade-out
+  have.forEach(node => {
+    node.classList.add('fade-out');
+    setTimeout(() => node.remove(), 200); // casa com .2s do CSS
+  });
+
+  // Reordena inserindo o fragment (mover nós existentes não pisca)
+  grid.appendChild(frag);
 }
 
 async function loadTeachers(){
@@ -74,16 +118,13 @@ async function loadTeachers(){
     teachers.forEach(t=>{
       const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
     });
-
-    // escolhe teacher: URL > localStorage > primeiro
-    const urlTeacher = param('teacher');
+    const urlTeacher = new URLSearchParams(location.search).get('teacher');
     const saved = localStorage.getItem('selectedTeacher');
     CURRENT_TEACHER = urlTeacher || saved || (teachers[0] && teachers[0].id) || null;
     if (CURRENT_TEACHER && teachers.some(t=>t.id===CURRENT_TEACHER)) sel.value = CURRENT_TEACHER;
     else { CURRENT_TEACHER = teachers[0] ? teachers[0].id : null; if (CURRENT_TEACHER) sel.value=CURRENT_TEACHER; }
-
     el('teacherLabel').textContent = (teachers.find(t=>t.id===CURRENT_TEACHER)||{}).name || '—';
-    el('msg').textContent = teachers.length ? '' : 'Nenhum professor cadastrado. Cadastre no scoring.';
+    el('msg').textContent = teachers.length ? '' : 'Nenhum professor cadastrado.';
   }catch(err){
     el('msg').textContent = 'Erro ao carregar professores: ' + err.message;
   }
@@ -94,16 +135,15 @@ async function loadClasses(){
   if (!CURRENT_TEACHER){
     el('msg').textContent = 'Selecione um professor.';
     el('classLabel').textContent = '—';
-    el('grid').innerHTML = '';
     return;
   }
-  el('msg').textContent = 'Carregando turmas...';
   try{
+    el('msg').textContent = 'Carregando turmas...';
     const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(CURRENT_TEACHER)}`);
     const classes = data.classes || [];
     classes.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; selClass.appendChild(o); });
 
-    const urlClass = param('class');
+    const urlClass = new URLSearchParams(location.search).get('class');
     const savedKey = `selectedClass_${CURRENT_TEACHER}`;
     const saved = localStorage.getItem(savedKey);
     CURRENT_CLASS = urlClass || saved || data.defaultClass || classes[0] || null;
@@ -118,18 +158,18 @@ async function loadClasses(){
   }
 }
 
-async function loadStandings(){
-  const grid = el('grid'); grid.innerHTML = '';
-  if (!CURRENT_TEACHER || !CURRENT_CLASS){
-    el('msg').textContent = 'Selecione professor e turma.';
-    return;
-  }
+async function refreshStandings(){
+  if (!CURRENT_TEACHER || !CURRENT_CLASS || REFRESHING) return;
+  REFRESHING = true;
   try{
     const data = await jsonp(`${API_BASE}?route=standings&teacher=${encodeURIComponent(CURRENT_TEACHER)}&class=${encodeURIComponent(CURRENT_CLASS)}`);
-    (data.standings||[]).forEach((g,i)=> grid.appendChild(card(g,i)));
-    el('msg').textContent = (data.standings||[]).length ? '' : 'Sem grupos para esta turma.';
+    const list = data.standings || [];
+    syncStandings(list);
+    el('msg').textContent = list.length ? '' : 'Sem grupos para esta turma.';
   }catch(err){
     el('msg').textContent = 'Erro ao carregar: ' + err.message;
+  }finally{
+    REFRESHING = false;
   }
 }
 
@@ -141,7 +181,7 @@ async function resetClass(){
     const res = await jsonp(`${API_BASE}?route=resetClass&teacher=${encodeURIComponent(CURRENT_TEACHER)}&class=${encodeURIComponent(CURRENT_CLASS)}&confirm=yes`);
     if (res && res.ok){
       alert(`Reset concluído para ${CURRENT_CLASS}.\nRemovidos: ${res.cleared.groups} grupos, ${res.cleared.members} alunos, ${res.cleared.scores} pontuações.`);
-      loadStandings();
+      refreshStandings();
     } else if (res && res.confirmRequired) {
       alert('Confirmação necessária (&confirm=yes).');
     } else {
@@ -152,29 +192,30 @@ async function resetClass(){
   }
 }
 
-// eventos
+// Eventos
 el('teacherSelect').addEventListener('change', async ()=>{
   CURRENT_TEACHER = el('teacherSelect').value;
   localStorage.setItem('selectedTeacher', CURRENT_TEACHER);
   el('teacherLabel').textContent = el('teacherSelect').selectedOptions[0]?.textContent || '—';
   await loadClasses();
-  await loadStandings();
+  await refreshStandings();
 });
 el('classSelect').addEventListener('change', ()=>{
   CURRENT_CLASS = el('classSelect').value;
   localStorage.setItem(`selectedClass_${CURRENT_TEACHER}`, CURRENT_CLASS);
   el('classLabel').textContent = CURRENT_CLASS || '—';
-  loadStandings();
+  refreshStandings();
 });
 el('printBtn').addEventListener('click', () => window.print());
 el('resetBtn').addEventListener('click', resetClass);
 
-// init
+// Init + polling suave
 (async function init(){
   await loadTeachers();
   await loadClasses();
-  await loadStandings();
-  setInterval(loadStandings, 15000);
+  await refreshStandings();
+  if (TIMER) clearInterval(TIMER);
+  TIMER = setInterval(refreshStandings, 15000); // sem piscar
 })();
 </script>
 </body>

@@ -249,3 +249,9 @@ input:focus-visible, select:focus-visible{
   box-shadow: 0 8px 20px rgba(0,0,0,.35);
 }
 .fab.blue{ background: var(--blue); color:#f0f9ff; }
+
+/* Atualizações suaves no dashboard */
+.card{ transition: opacity .2s ease; }
+.fill{ transition: width .6s ease; will-change: width; }
+.runner{ transition: left .6s ease; will-change: left; }
+.card.fade-out{ opacity: 0; }

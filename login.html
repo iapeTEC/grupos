@@ -86,7 +86,8 @@
 
 <script>
 /* ===== CONFIG ===== */
-const API_BASE = 'https://script.google.com/macros/s/AKfycbx2wDM-i03Qg9exdpE1vB1d5xKUnjgkYTb_SwuYiWoOQwRJiTQ1W-F3HUWOHHZ8WbMqbg/exec'; // <<< cole sua URL /exec aqui
+const API_BASE = 'https://script.google.com/macros/s/AKfycbx2wDM-i03Qg9exdpE1vB1d5xKUnjgkYTb_SwuYiWoOQwRJiTQ1W-F3HUWOHHZ8WbMqbg/exec';
+const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 /* ===== JSONP com timeout ===== */
 function jsonp(url, {timeoutMs=12000} = {}){
@@ -106,6 +107,7 @@ function jsonp(url, {timeoutMs=12000} = {}){
   });
 }
 const el = id => document.getElementById(id);
+const qs = key => new URLSearchParams(location.search).get(key);
 
 /* ===== Modal de progresso ===== */
 function showProgress(title, sub, showOk=false){
@@ -132,6 +134,7 @@ let CLASSES = [];
 let GROUPS = [];
 let CATEGORIES = [];
 let INDIVIDUAL_ON = false;
+let suppressToggleEvent = false; // evita reset do toggle ao trocar de turma
 
 /* ===== Builders ===== */
 function classCard(name, selected){
@@ -227,19 +230,31 @@ function syncClassGrid(){
 }
 function syncGroupGrid(){
   const grid = el('groupGrid');
-  const frag = document.createDocumentFragment();
+  // mapa de nós existentes por id p/ evitar piscar
+  const existing = new Map(Array.from(grid.children)
+    .filter(n => n.dataset && n.dataset.id)
+    .map(n => [n.dataset.id, n]));
+  const next = [];
   (GROUPS||[]).forEach(g=>{
-    let node = grid.querySelector(`[data-id="${g.id}"]`);
+    let node = existing.get(g.id);
     if (!node) node = groupCard(g);
     else {
+      // atualiza campos
       node.querySelector('.group-title').textContent = g.name;
       const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
-      const imgEl = node.querySelector('.group-photo img'); if (imgEl.src !== img) imgEl.src = img;
+      const imgEl = node.querySelector('.group-photo img');
+      if (imgEl && imgEl.src !== img) imgEl.src = img;
       updateMemberList(node.querySelector('[data-list]'), g.members||[], g.id);
+      existing.delete(g.id);
     }
-    frag.appendChild(node);
+    next.push(node);
   });
-  grid.innerHTML=''; frag.appendChild(plusGroupCard()); grid.appendChild(frag);
+  // remove nós obsoletos
+  existing.forEach(node => node.remove());
+  // monta DOM final
+  grid.innerHTML = '';
+  next.forEach(n => grid.appendChild(n));
+  grid.appendChild(plusGroupCard());
 }
 function syncCatGrid(){
   const grid = el('catGrid'); grid.innerHTML='';
@@ -249,24 +264,28 @@ function syncCatGrid(){
 
 /* ===== API ===== */
 async function pingCheck(){
-  const ping = await jsonp(`${API_BASE}?route=ping`);
+  const ping = await jsonp(`${API}?route=ping`);
   if (!ping || !ping.ok) throw new Error('Ping falhou');
 }
 async function loadTeachers(){
-  const data = await jsonp(`${API_BASE}?route=teachers`);
+  const data = await jsonp(`${API}?route=teachers`);
   const sel = el('teacherSelect'); sel.innerHTML='';
   (data.teachers||[]).forEach(t=>{
     const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
   });
+  // preferencia: URL -> localStorage -> primeiro da lista
+  const fromUrl = qs('teacher');
   const saved = localStorage.getItem('teacherId');
-  if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
+  if (fromUrl && (data.teachers||[]).some(t=>t.id===fromUrl)) sel.value = fromUrl;
+  else if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
   TEACHER = sel.value || null;
+  if (TEACHER) localStorage.setItem('teacherId', TEACHER);
 }
 async function createTeacherFlow(){
   const name = prompt('Seu nome completo:'); if (!name) return;
   const prog = showProgress('Criando professor…','Preparando planilha');
   try{
-    const res = await jsonp(`${API_BASE}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=mixed`);
+    const res = await jsonp(`${API}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=mixed`);
     if (!res || !res.ok) throw new Error('Falha ao criar');
     await loadTeachers();
     el('teacherSelect').value = res.teacherId; TEACHER = res.teacherId;
@@ -276,18 +295,23 @@ async function createTeacherFlow(){
 }
 async function loadClasses(){
   if (!TEACHER) return;
-  const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
-  CLASSES = data.classes || [];
-  if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
+  const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
+  CLASSES = (data.classes || []).map(s=> (s||'').trim());
+  // seleciona: URL -> localStorage -> primeira
+  const fromUrl = qs('class');
+  if (fromUrl && CLASSES.includes(fromUrl)) setSelectedClass(fromUrl, false);
+  else if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
   syncClassGrid();
 }
 async function createClass(name){
   if (!TEACHER) return;
+  const clean = (name||'').trim().replace(/\s+/g,' ');
+  if (!clean) return;
   const prog = showProgress('Criando classe…');
   try{
-    await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(name)}`);
+    await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(clean)}`);
     await loadClasses();
-    setSelectedClass(name);
+    setSelectedClass(clean);
     prog.done('Classe criada!');
   }catch(e){ prog.fail(e.message); }
 }
@@ -295,78 +319,86 @@ async function deleteClass(name){
   if (!confirm(`Excluir a classe "${name}"? Isso apagará grupos, alunos e pontuações.`)) return;
   const prog = showProgress('Excluindo classe…');
   try{
-    await jsonp(`${API_BASE}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(name)}&confirm=yes`);
+    await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(name)}&confirm=yes`);
     await loadClasses(); await loadGroups(); await loadCategories();
     prog.done('Classe excluída!');
   }catch(e){ prog.fail(e.message); }
 }
 async function loadGroups(){
   if (!TEACHER || !getSelectedClass()){ GROUPS=[]; syncGroupGrid(); return; }
-  const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
+  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
   GROUPS = data.groups || [];
   el('classNameBadge').textContent = getSelectedClass() || '—';
   syncGroupGrid();
 }
 async function createGroup(name){
+  const clean = (name||'').trim().replace(/\s+/g,' ');
+  if (!clean) return;
   const img = prompt('URL da foto do grupo (opcional):') || '';
   const prog = showProgress('Criando grupo…');
   try{
-    await jsonp(`${API_BASE}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(name)}&imageURL=${encodeURIComponent(img)}`);
+    await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(clean)}&imageURL=${encodeURIComponent(img)}`);
     await loadGroups(); prog.done('Grupo criado!');
   }catch(e){ prog.fail(e.message); }
 }
 async function setStudents(groupId, names){
   const prog = showProgress('Salvando alunos…');
   try{
-    await jsonp(`${API_BASE}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+    await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
     await loadGroups(); prog.done('Alunos salvos!');
   }catch(e){ prog.fail(e.message); }
 }
 async function removeStudent(groupId, name){
-  await jsonp(`${API_BASE}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
+  await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
 }
 async function resetGroupsAll(){
   if (!confirm('Você já salvou em PDF? Isto apagará TODOS os grupos, alunos e pontuações desta classe.')) return;
   const prog = showProgress('Resetando grupos…');
   try{
-    await jsonp(`${API_BASE}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
+    await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
     await loadGroups(); prog.done('Grupos resetados!');
   }catch(e){ prog.fail(e.message); }
 }
 async function loadCategories(){
   if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
-  const data = await jsonp(`${API_BASE}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
+  const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
   CATEGORIES = data.categories || [];
   INDIVIDUAL_ON = !!data.individualOn;
+  // evita disparar setIndividual ao atualizar UI
+  suppressToggleEvent = true;
   el('toggleIndividual').checked = INDIVIDUAL_ON;
+  setTimeout(()=>{ suppressToggleEvent = false; }, 0);
   syncCatGrid();
 }
 async function addCategory(name){
+  const clean = (name||'').trim().replace(/\s+/g,' ');
+  if (!clean) return;
   const prog = showProgress('Criando categoria…');
   try{
-    await jsonp(`${API_BASE}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
-    await loadCategories(); prog.done('Categoria criada!');
+    await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
+    await loadCategories(); prog.done('Categoria criado!');
   }catch(e){ prog.fail(e.message); }
 }
 async function deleteCategory(name){
   if (!confirm(`Excluir a categoria "${name}"?`)) return;
   const prog = showProgress('Excluindo categoria…');
   try{
-    await jsonp(`${API_BASE}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
     await loadCategories(); prog.done('Categoria excluída!');
   }catch(e){ prog.fail(e.message); }
 }
 async function setIndividual(on){
   const prog = showProgress('Salvando preferência…');
   try{
-    await jsonp(`${API_BASE}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
+    await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
     INDIVIDUAL_ON = on; prog.done('Preferência salva!');
   }catch(e){ prog.fail(e.message); }
 }
 
 /* ===== UI flows ===== */
-function getSelectedClass(){ return localStorage.getItem(`selectedClass_${TEACHER}`) || null; }
+function getSelectedClass(){ return TEACHER ? (localStorage.getItem(`selectedClass_${TEACHER}`) || null) : null; }
 function setSelectedClass(name, doLoads=true){
+  if (!TEACHER) return;
   if (!name){ localStorage.removeItem(`selectedClass_${TEACHER}`); el('classNameBadge').textContent='—'; return; }
   localStorage.setItem(`selectedClass_${TEACHER}`, name);
   el('classNameBadge').textContent = name;
@@ -385,11 +417,15 @@ el('teacherSelect').addEventListener('change', async ()=>{
   await loadClasses(); await loadGroups(); await loadCategories();
 });
 el('resetGroups').addEventListener('click', resetGroupsAll);
-el('toggleIndividual').addEventListener('change', (e)=> setIndividual(e.target.checked));
+el('toggleIndividual').addEventListener('change', (e)=>{
+  if (suppressToggleEvent) return; // não salva quando foi mudança programática
+  setIndividual(e.target.checked);
+});
 el('goScore').addEventListener('click', ()=>{
   const c = getSelectedClass();
   if (!TEACHER || !c){ alert('Escolha professor e classe.'); return; }
-  window.location.href = `score.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`;
+  // OBS: nome do arquivo é pontuacao.html
+  window.location.href = `pontuacao.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`;
 });
 el('modalOk').addEventListener('click', ()=> el('progressModal').classList.add('hidden'));
 

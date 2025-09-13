@@ -58,7 +58,7 @@
   </div></div>
 
 <script>
-const API_BASE = 'https://script.google.com/macros/s/AKfycbytSZsaBOsoI1ZhZNy8irvCaSFhYia9I9zeRJF5W1dNN-QlHGLpMQZlknuRVOKlIbIDzg/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbzYy3lL2Z6sNS_F_5olxP-CanBCy9Ihtc68b3osa5NPwsdfZH0Ix6rXm6ujE75Qr4WIBA/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 const el = id => document.getElementById(id);
@@ -96,6 +96,7 @@ async function loadMeta(){
   el('btnBack').onclick = ()=> location.href = `login.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`;
 
   const meta = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}`);
+  if (meta && meta.error){ alert(meta.error); return; }
   CATEGORIES = meta.categories || []; INDIVIDUAL_ON = !!meta.individualOn;
   el('titleHead').textContent = `Pontuação — ${CLASS}`;
 
@@ -107,6 +108,7 @@ async function loadMeta(){
 }
 async function loadGroups(){
   const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}`);
+  if (data && data.error){ alert(data.error); return; }
   GROUPS = data.groups || [];
   const sel = el('groupSelect'); sel.innerHTML='';
   GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });

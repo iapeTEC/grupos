@@ -2,19 +2,19 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Gameboard – Pontuação (Idoso-friendly)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Gameboard – Pontuação</title>
   <link rel="stylesheet" href="game-scores.css">
 </head>
 <body>
   <div class="wrap">
-    <!-- Área de pontuação (fica oculta até terminar o assistente) -->
-    <div class="card" id="scoreCard" style="display:none">
-      <h2 class="title-xl">Pontuação</h2>
+    <div class="card">
+      <h2 class="title-xl" id="titleHead">Pontuação</h2>
+
       <div class="row">
         <div style="flex:1">
           <label class="label-lg">Grupo</label>
-          <select id="scoreGroup" class="big-select"></select>
+          <select id="groupSelect" class="big-select"></select>
         </div>
         <div style="flex:1">
           <label class="label-lg">Seu nome (opcional)</label>
@@ -22,308 +22,99 @@
         </div>
       </div>
 
-      <h3 class="title-lg">Quatro categorias (0–10)</h3>
-      <div class="grid4">
-        <div><label class="label-lg">Visual</label><input type="number" id="c1" min="0" max="10" step="0.1" class="big-input"/></div>
-        <div><label class="label-lg">Trilha Sonora</label><input type="number" id="c2" min="0" max="10" step="0.1" class="big-input"/></div>
-        <div><label class="label-lg">Proposta</label><input type="number" id="c3" min="0" max="10" step="0.1" class="big-input"/></div>
-        <div><label class="label-lg">Vocabulário/Roteiro</label><input type="number" id="c4" min="0" max="10" step="0.1" class="big-input"/></div>
-      </div>
+      <h3 class="title-lg">Categorias (0–10)</h3>
+      <div id="catInputs" class="grid4"></div>
 
-      <h3 class="title-lg">Apresentação por aluno (0–10)</h3>
-      <div id="studentsBox" class="students"></div>
+      <div id="blockIndividual" class="hidden">
+        <h3 class="title-lg">Apresentação por aluno (0–10)</h3>
+        <div id="studentsBox" class="students"></div>
+      </div>
 
       <h3 class="title-lg">Resumo</h3>
       <div style="display:flex;gap:12px;flex-wrap:wrap;">
-        <div class="badge">Média 4 categorias: <b id="avgCats">0</b></div>
-        <div class="badge">Média apresentação: <b id="avgPres">0</b></div>
-        <div class="badge">Pesos (cat/ind): <b id="weightsLabel">5/5</b></div>
+        <div class="badge">Média categorias: <b id="avgCats">0</b></div>
+        <div class="badge hidden" id="avgPresWrap">Média apresentação: <b id="avgPres">0</b></div>
         <div class="badge">Pontuação da rodada (0–10): <b id="finalRound">0</b></div>
       </div>
 
       <div style="margin-top:18px;display:flex;gap:12px;align-items:center;">
-        <button class="btn green btn-lg" id="submitScoreBtn">Salvar pontuação</button>
+        <button class="btn green btn-lg" id="submitScore">Salvar pontuação</button>
         <span class="muted" id="msg"></span>
       </div>
     </div>
   </div>
 
-  <!-- BOTÃO FLUTUANTE para reabrir o assistente -->
-  <button class="fab blue" id="openWizardFab" title="Configurar">⚙️</button>
-
-  <!-- ASSISTENTE EM TELA CHEIA (uma etapa por vez) -->
-  <div class="wizard-overlay" id="wizard" aria-modal="true" role="dialog">
-    <div class="wizard-box">
-      <div class="wizard-head">
-        <div class="wizard-title" id="wizTitle">Bem-vindo, Professor!</div>
-        <div class="wizard-sub" id="wizSub">Selecione seu nome abaixo, ou clique em <b>Cadastrar professor +</b>.</div>
-      </div>
-
-      <!-- ETAPA 1: Professor -->
-      <section class="wiz-step" id="step-1">
-        <div class="field">
-          <label class="label-xl">Professor</label>
-          <select id="teacherSelect" class="big-select"></select>
-        </div>
-        <div class="row">
-          <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
-        </div>
-        <div class="field hidden" id="teacherCreateRow">
-          <input id="newTeacher" class="big-input" placeholder="Seu nome completo"/>
-          <select id="modeSelect" class="big-select">
-            <option value="mixed">Misto (5/5)</option>
-            <option value="group">Grupo (10/0)</option>
-            <option value="individual">Individual (0/10)</option>
-          </select>
-          <button class="btn green btn-lg" id="confirmCreateTeacher">Criar sala</button>
-        </div>
-        <div class="wiz-nav">
-          <button class="btn blue btn-lg" id="next-1">Continuar →</button>
-        </div>
-      </section>
-
-      <!-- ETAPA 2: Turma -->
-      <section class="wiz-step hidden" id="step-2">
-        <div class="field">
-          <label class="label-xl">Turma</label>
-          <select id="classSelect" class="big-select"></select>
-        </div>
-        <div class="row">
-          <button class="btn green btn-lg" id="btnCreateClass">Cadastrar turma +</button>
-        </div>
-        <div class="field hidden" id="classCreateRow">
-          <input id="newClass" class="big-input" placeholder="Ex.: 3º Ano Fundamental"/>
-          <button class="btn green btn-lg" id="confirmCreateClass">Criar</button>
-        </div>
-        <div class="wiz-nav">
-          <button class="btn btn-lg" id="back-2">← Voltar</button>
-          <button class="btn blue btn-lg" id="next-2">Continuar →</button>
-        </div>
-      </section>
-
-      <!-- ETAPA 3: Grupo -->
-      <section class="wiz-step hidden" id="step-3">
-        <div class="field">
-          <label class="label-xl">Nome do grupo</label>
-          <input id="groupName" class="big-input" placeholder="Ex.: Vingadores"/>
-        </div>
-        <div class="field">
-          <label class="label-xl">Foto (URL opcional)</label>
-          <input id="groupImage" class="big-input" placeholder="Cole o link da imagem (Drive/Imgur)…"/>
-          <div class="muted">Ou <a id="uploadLink" href="#" target="_blank">enviar imagem pelo formulário</a>.</div>
-        </div>
-        <div class="row">
-          <button class="btn green btn-lg" id="confirmCreateGroup">Cadastrar grupo</button>
-        </div>
-        <div class="field">
-          <label class="label-xl">Selecionar grupo existente</label>
-          <select id="groupSelect" class="big-select"></select>
-        </div>
-        <div class="wiz-nav">
-          <button class="btn btn-lg" id="back-3">← Voltar</button>
-          <button class="btn blue btn-lg" id="next-3">Continuar →</button>
-        </div>
-      </section>
-
-      <!-- ETAPA 4: Modo -->
-      <section class="wiz-step hidden" id="step-4">
-        <div class="mode-grid">
-          <button class="mode-card" data-mode="group"><div class="mode-title">Grupo</div><div class="mode-desc">Nota por grupo (0–10)</div></button>
-          <button class="mode-card" data-mode="individual"><div class="mode-title">Individual</div><div class="mode-desc">Nota por aluno (0–10)</div></button>
-          <button class="mode-card" data-mode="mixed"><div class="mode-title">Misto</div><div class="mode-desc">Categorias + apresentação (soma 10)</div></button>
-        </div>
-        <div class="muted" id="weightsInfo">Pesos atuais: 5/5</div>
-        <div class="wiz-nav">
-          <button class="btn btn-lg" id="back-4">← Voltar</button>
-          <button class="btn blue btn-lg" id="next-4">Continuar →</button>
-        </div>
-      </section>
-
-      <!-- ETAPA 5: Alunos -->
-      <section class="wiz-step hidden" id="step-5">
-        <div id="studentInputs"></div>
-        <div class="row">
-          <button class="btn green btn-lg" id="addStudentField">Adicionar aluno +</button>
-        </div>
-        <div class="wiz-nav">
-          <button class="btn btn-lg" id="back-5">← Voltar</button>
-          <button class="btn green btn-lg" id="confirmStudents">Salvar alunos</button>
-          <button class="btn purple btn-lg" id="finishWizard">Finalizar • Ir para pontuação</button>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <!-- Modal de progresso (reaproveitado) -->
-  <div class="modal hidden" id="progressModal" role="alertdialog" aria-live="assertive" aria-modal="true">
-    <div class="modal-box">
-      <div class="modal-title" id="progressTitle">Processando…</div>
-      <div class="progress"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
-      <div class="modal-sub" id="progressSub">Aguarde um instante.</div>
-    </div>
-  </div>
+  <!-- Modal progresso -->
+  <div class="modal hidden" id="progressModal"><div class="modal-box">
+    <div class="modal-title" id="progressTitle">Processando…</div>
+    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="modal-sub" id="progressSub">Aguarde um instante.</div>
+  </div></div>
 
 <script>
-const API_BASE = 'https://script.google.com/macros/s/AKfycbyCuXJrLRxoJ3DqezUUDNDxgApYKME1-nUgWGThHMKWscnEwlqbcGC9-qhaj_lGBAUG/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbyR-RPapWOIt3XHMyxciwj60zn6naKWdFYwoGG_3HhBA2Qh9rELk3Y5oiv4rov7JczT/exec'; // <<<<<<<<<<<<<< TROQUE AQUI
 
+const el = id => document.getElementById(id);
+const qs = name => new URLSearchParams(location.search).get(name);
 function jsonp(url){
   return new Promise((resolve, reject)=>{
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     const s = document.createElement('script');
-    window[cb] = (data) => { resolve(data); delete window[cb]; s.remove(); };
-    s.onerror = () => { delete window[cb]; reject(new Error('Falha JSONP')); };
-    s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
+    window[cb] = (data)=>{ resolve(data); delete window[cb]; s.remove(); };
+    s.onerror = ()=>{ delete window[cb]; reject(new Error('Falha JSONP')); };
+    s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cb;
     document.body.appendChild(s);
   });
 }
-const el = id => document.getElementById(id);
+function showProgress(t, sub){
+  el('progressTitle').textContent = t||'Processando…';
+  el('progressSub').textContent = sub||'Aguarde…';
+  el('progressBar').style.width='0%';
+  el('progressModal').classList.remove('hidden');
+  let p=0, k=setInterval(()=>{ p=Math.min(90,p+12); el('progressBar').style.width=p+'%'; },120);
+  return { done:()=>{clearInterval(k); el('progressBar').style.width='100%'; el('progressModal').classList.add('hidden');} };
+}
 const clamp10 = v => Math.max(0, Math.min(10, parseFloat(v)||0));
 const round2 = x => Math.round(x*100)/100;
 
 let TEACHER = null;
-let CLASSES = [];
+let CLASS = null;
 let GROUPS = [];
-let WEIGHTS = {cat:5, ind:5};
+let CATEGORIES = [];
+let INDIVIDUAL_ON = false;
 
-function driveDirect(viewUrl){
-  const m = String(viewUrl||'').match(/\/d\/([a-zA-Z0-9_-]{20,})\//);
-  if (m) return 'https://drive.google.com/uc?export=view&id=' + m[1];
-  return viewUrl;
-}
-
-// ------- Progress modal -------
-function showProgress(title, sub){
-  el('progressTitle').textContent = title || 'Processando…';
-  el('progressSub').textContent = sub || 'Aguarde um instante.';
-  el('progressBar').style.width = '0%';
-  el('progressModal').classList.remove('hidden');
-  let pct = 0;
-  return new Promise(resolve=>{
-    const t = setInterval(()=>{
-      pct += 12 + Math.random()*10;
-      if (pct >= 100){ pct = 100; clearInterval(t); setTimeout(resolve, 250); }
-      el('progressBar').style.width = pct + '%';
-    }, 120);
-  });
-}
-function hideProgress(){ el('progressModal').classList.add('hidden'); }
-
-// ------- Wizard helpers -------
-let STEP = 1;
-function showStep(n){
-  STEP = n;
-  ['step-1','step-2','step-3','step-4','step-5'].forEach(id=> el(id).classList.add('hidden'));
-  el(`step-${n}`).classList.remove('hidden');
-  const titles = {
-    1:'Bem-vindo, Professor!',
-    2:'Cadastre ou escolha sua turma',
-    3:'Cadastre um grupo (ou escolha um)',
-    4:'Como você vai avaliar?',
-    5:'Adicione os alunos'
-  };
-  const subs = {
-    1:'Selecione seu nome abaixo, ou clique em Cadastrar professor +.',
-    2:'Um nome simples ajuda: ex. “1 Ano A”, “3º Ano Fundamental”…',
-    3:'Dica: você pode colar a URL da foto (Drive/Imgur).',
-    4:'Grupo, Individual ou Misto (soma 10).',
-    5:'Clique em “Adicionar aluno +” para incluir novos campos.'
-  };
-  el('wizTitle').textContent = titles[n];
-  el('wizSub').innerHTML = subs[n];
-  window.scrollTo({ top: 0, behavior:'smooth' });
-}
-function closeWizard(){
-  el('wizard').style.display = 'none';
-  el('scoreCard').style.display = '';
-  window.scrollTo({ top: 0, behavior:'smooth' });
-}
-function reopenWizard(){
-  el('wizard').style.display = '';
-  el('scoreCard').style.display = 'none';
-  showStep(1);
-}
-
-// ------- API ------
-async function loadTeachers(){
-  const data = await jsonp(`${API_BASE}?route=teachers`);
-  const sel = el('teacherSelect'); sel.innerHTML='';
-  (data.teachers||[]).forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o); });
-  const saved = localStorage.getItem('teacherId');
-  if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
-  TEACHER = sel.value || null;
-}
-async function createTeacher(name, mode){
-  await showProgress('Criando sala do professor…','Preparando planilha no Drive');
-  const res = await jsonp(`${API_BASE}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=${encodeURIComponent(mode)}`);
-  hideProgress();
-  if (res && res.ok){
-    WEIGHTS = res.weights || {cat:5,ind:5};
-    await loadTeachers();
-    el('teacherSelect').value = res.teacherId;
-    TEACHER = res.teacherId;
-    localStorage.setItem('teacherId', TEACHER);
-    return true;
-  }
-  alert('Falha ao criar professor.');
-  return false;
-}
-async function setScoring(mode){
-  if (!TEACHER) return;
-  await showProgress('Salvando modo de pontuação…');
-  const res = await jsonp(`${API_BASE}?route=setScoring&teacher=${encodeURIComponent(TEACHER)}&mode=${encodeURIComponent(mode)}`);
-  hideProgress();
-  if (res && res.ok){ WEIGHTS = res.weights || {cat:5,ind:5}; el('weightsInfo').textContent = `Pesos atuais: ${WEIGHTS.cat}/${WEIGHTS.ind}`; }
-}
-async function loadClasses(){
-  if (!TEACHER) return;
-  const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
-  CLASSES = data.classes||[];
-  const sel = el('classSelect'); sel.innerHTML='';
-  CLASSES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
-}
-async function createClass(cname){
-  await showProgress('Criando turma…');
-  await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(cname)}`);
-  hideProgress();
-  await loadClasses();
-  el('classSelect').value = cname;
-  localStorage.setItem('className', cname);
-}
-async function loadGroups(){
-  if (!TEACHER) return;
-  const klass = el('classSelect').value || '';
-  const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}`);
-  GROUPS = data.groups||[];
-  [el('groupSelect'), el('scoreGroup')].forEach(sel=>{
-    sel.innerHTML=''; GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });
-  });
-  updateUploadLink();
-  renderStudentsForScore();
+async function loadMeta(){
+  TEACHER = qs('teacher');
+  CLASS = qs('class');
+  if (!TEACHER || !CLASS){ alert('Parâmetros faltando.'); return; }
+  const meta = await jsonp(`${API_BASE}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`);
+  CATEGORIES = meta.categories || [];
+  INDIVIDUAL_ON = !!meta.individualOn;
+  el('titleHead').textContent = `Pontuação — ${CLASS}`;
+  await loadGroups();
+  renderCatInputs();
+  el('blockIndividual').classList.toggle('hidden', !INDIVIDUAL_ON);
+  el('avgPresWrap').classList.toggle('hidden', !INDIVIDUAL_ON);
   compute();
 }
-async function addGroup(name, imageURL){
-  const klass = el('classSelect').value || '';
-  await showProgress('Criando grupo…');
-  await jsonp(`${API_BASE}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupName=${encodeURIComponent(name)}&imageURL=${encodeURIComponent(driveDirect(imageURL||''))}`);
-  hideProgress();
-  await loadGroups();
-  const g = GROUPS.find(x=>x.name===name) || GROUPS[GROUPS.length-1];
-  if (g){ el('groupSelect').value = g.id; el('scoreGroup').value = g.id; }
+async function loadGroups(){
+  const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`);
+  GROUPS = data.groups || [];
+  const sel = el('groupSelect'); sel.innerHTML='';
+  GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });
+  renderStudentsForScore();
 }
-async function addStudentsToCurrent(names){
-  const klass = el('classSelect').value || '';
-  const gid = el('groupSelect').value || '';
-  if (!gid){ alert('Selecione um grupo.'); return false; }
-  await showProgress('Adicionando alunos…');
-  await jsonp(`${API_BASE}?route=addStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&students=${encodeURIComponent(JSON.stringify(names))}`);
-  hideProgress();
-  await loadGroups();
-  return true;
+function renderCatInputs(){
+  const box = el('catInputs'); box.innerHTML='';
+  (CATEGORIES||[]).forEach(c=>{
+    const w=document.createElement('div');
+    w.innerHTML = `<label class="label-lg">${c.name}</label><input class="big-input" type="number" step="0.1" min="0" max="10" data-cat="${c.name}">`;
+    w.querySelector('input').addEventListener('input', compute);
+    box.appendChild(w);
+  });
 }
-
-// ------- Pontuação -------
 function renderStudentsForScore(){
-  const gid = el('scoreGroup').value || (GROUPS[0] && GROUPS[0].id);
+  const gid = el('groupSelect').value || (GROUPS[0] && GROUPS[0].id);
   const g = GROUPS.find(x=>x.id===gid) || {members:[]};
   const box = el('studentsBox'); box.innerHTML='';
   (g.members||[]).forEach(name=>{
@@ -334,122 +125,52 @@ function renderStudentsForScore(){
   });
 }
 function compute(){
-  const cats = ['c1','c2','c3','c4'].map(id=> Math.max(0, Math.min(10, parseFloat(el(id).value)||0 )));
-  const avgCats = (cats[0]+cats[1]+cats[2]+cats[3]) / 4;
-  const presInputs = document.querySelectorAll('#studentsBox [data-pres]');
-  const presVals = Array.from(presInputs).map(i=>Math.max(0, Math.min(10, parseFloat(i.value)||0 ))).filter(v=>!Number.isNaN(v));
-  const avgPres = presVals.length ? presVals.reduce((a,b)=>a+b,0)/presVals.length : 0;
+  const catInputs = Array.from(document.querySelectorAll('[data-cat]'));
+  const catVals = catInputs.map(i=>clamp10(i.value)).filter(v=>!Number.isNaN(v));
+  const avgCats = catVals.length ? catVals.reduce((a,b)=>a+b,0)/catVals.length : 0;
   el('avgCats').textContent = round2(avgCats);
-  el('avgPres').textContent = round2(avgPres);
-  el('weightsLabel').textContent = `${WEIGHTS.cat}/${WEIGHTS.ind}`;
-  el('finalRound').textContent = round2((avgCats*(WEIGHTS.cat/10)) + (avgPres*(WEIGHTS.ind/10)));
+
+  let avgPres = 0;
+  if (INDIVIDUAL_ON){
+    const presInputs = document.querySelectorAll('#studentsBox [data-pres]');
+    const presVals = Array.from(presInputs).map(i=>clamp10(i.value)).filter(v=>!Number.isNaN(v));
+    avgPres = presVals.length ? presVals.reduce((a,b)=>a+b,0)/presVals.length : 0;
+    el('avgPres').textContent = round2(avgPres);
+  }
+  // Final: se INDIVIDUAL_ON, média de (avgCats, avgPres); senão, só avgCats
+  const final = INDIVIDUAL_ON ? (avgCats + avgPres)/2 : avgCats;
+  el('finalRound').textContent = round2(final);
 }
 async function submitScore(){
-  if (!TEACHER){ alert('Selecione/cadastre um professor.'); return; }
-  const klass = el('classSelect').value || '';
-  const gid = el('scoreGroup').value || '';
-  if (!gid){ alert('Selecione o grupo.'); return; }
-  const cats = ['c1','c2','c3','c4'].map(id=> Math.max(0, Math.min(10, parseFloat(el(id).value)||0 )) );
+  const gid = el('groupSelect').value || (GROUPS[0] && GROUPS[0].id);
+  if (!gid){ alert('Selecione um grupo.'); return; }
+  const cats = Array.from(document.querySelectorAll('[data-cat]'))
+    .map(i=>({ name: i.dataset.cat, score: clamp10(i.value) }));
   const pres = Array.from(document.querySelectorAll('#studentsBox [data-pres]'))
-    .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: Math.max(0, Math.min(10, parseFloat(inp.value)||0 )) }))
+    .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: clamp10(inp.value) }))
     .filter(p=>!isNaN(p.score));
-  await showProgress('Salvando pontuação…');
-  const data = await jsonp(`${API_BASE}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid)}&c1=${cats[0]}&c2=${cats[1]}&c3=${cats[2]}&c4=${cats[3]}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}&presentations=${encodeURIComponent(JSON.stringify(pres))}`);
-  hideProgress();
-  if (data && data.ok){
-    el('msg').innerHTML = `<span style="color:#22c55e">Salvo! Rodada = ${data.finalRound.toFixed(2)} (cat: ${data.avgCategories.toFixed(2)} / ind: ${data.presentationAvg.toFixed(2)})</span>`;
+  const prog = showProgress('Salvando pontuação…');
+  try{
+    const data = await jsonp(`${API_BASE}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}&groupId=${encodeURIComponent(gid)}&categoriesJSON=${encodeURIComponent(JSON.stringify(cats))}&presentations=${encodeURIComponent(JSON.stringify(pres))}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}`);
+    prog.done();
+    el('msg').innerHTML = data && data.ok ? `<span style="color:#22c55e">Salvo!</span>` : `<span style="color:#ef4444">Falha ao salvar.</span>`;
     document.querySelectorAll('#studentsBox [data-pres]').forEach(i=> i.value='');
     compute();
-  }else{
-    el('msg').innerHTML = `<span style="color:#ef4444">Falha ao salvar.</span>`;
+  }catch(e){
+    el('msg').innerHTML = `<span style="color:#ef4444">${e.message}</span>`;
   }
 }
-function updateUploadLink(){
-  const klass = el('classSelect').value || '';
-  const gid = el('groupSelect').value || '';
-  el('uploadLink').href = `${API_BASE}?route=uploadForm&teacher=${encodeURIComponent(TEACHER||'')}&class=${encodeURIComponent(klass)}&groupId=${encodeURIComponent(gid||el('groupName').value||'')}`;
-}
 
-// ------- Eventos do assistente -------
-el('btnCreateTeacher').addEventListener('click', ()=> el('teacherCreateRow').classList.toggle('hidden'));
-el('confirmCreateTeacher').addEventListener('click', async ()=>{
-  const name = el('newTeacher').value.trim();
-  const mode = el('modeSelect').value;
-  if (!name){ alert('Informe seu nome.'); return; }
-  const ok = await createTeacher(name, mode);
-  if (ok){ await setScoring(mode); await loadClasses(); showStep(2); }
-});
-el('next-1').addEventListener('click', async ()=>{
-  TEACHER = el('teacherSelect').value || null;
-  if (!TEACHER){ alert('Selecione um professor.'); return; }
-  localStorage.setItem('teacherId', TEACHER);
-  await loadClasses();
-  showStep(2);
-});
+// eventos
+el('groupSelect').addEventListener('change', ()=>{ renderStudentsForScore(); compute(); });
+el('submitScore').addEventListener('click', submitScore);
 
-el('btnCreateClass').addEventListener('click', ()=> el('classCreateRow').classList.toggle('hidden'));
-el('confirmCreateClass').addEventListener('click', async ()=>{
-  const cname = el('newClass').value.trim();
-  if (!cname){ alert('Informe a turma.'); return; }
-  await createClass(cname);
-  showStep(3);
-});
-el('back-2').addEventListener('click', ()=> showStep(1));
-el('next-2').addEventListener('click', async ()=>{
-  if (!el('classSelect').value){ alert('Escolha uma turma.'); return; }
-  await loadGroups();
-  showStep(3);
-});
-
-el('confirmCreateGroup').addEventListener('click', async ()=>{
-  const name = el('groupName').value.trim();
-  await addGroup(name, el('groupImage').value.trim());
-  el('groupName').value=''; el('groupImage').value='';
-});
-el('back-3').addEventListener('click', ()=> showStep(2));
-el('next-3').addEventListener('click', ()=> showStep(4));
-
-document.querySelectorAll('.mode-card').forEach(btn=>{
-  btn.addEventListener('click', async ()=>{
-    const mode = btn.dataset.mode;
-    await setScoring(mode);
-  });
-});
-el('back-4').addEventListener('click', ()=> showStep(3));
-el('next-4').addEventListener('click', ()=> showStep(5));
-
-function addStudentField(value=''){
-  const wrap = document.createElement('div'); wrap.className='field row';
-  const inp = document.createElement('input'); inp.className='big-input'; inp.placeholder='Nome do aluno'; inp.value=value;
-  const del = document.createElement('button'); del.className='btn red btn-lg'; del.textContent='–'; del.title='Remover';
-  del.addEventListener('click', ()=> wrap.remove());
-  wrap.appendChild(inp); wrap.appendChild(del);
-  el('studentInputs').appendChild(wrap);
-}
-el('addStudentField').addEventListener('click', ()=> addStudentField());
-el('confirmStudents').addEventListener('click', async ()=>{
-  const names = Array.from(el('studentInputs').querySelectorAll('input')).map(i=>i.value.trim()).filter(Boolean);
-  if (!names.length){ alert('Adicione pelo menos um aluno.'); return; }
-  const ok = await addStudentsToCurrent(names);
-  if (ok){ el('studentInputs').innerHTML=''; alert('Alunos salvos!'); }
-});
-el('finishWizard').addEventListener('click', ()=>{
-  closeWizard();
-});
-
-// Reabrir assistente
-el('openWizardFab').addEventListener('click', ()=> reopenWizard());
-
-// Pontuação
-['c1','c2','c3','c4'].forEach(id=> el(id).addEventListener('input', compute));
-el('scoreGroup').addEventListener('change', ()=>{ renderStudentsForScore(); compute(); });
-el('submitScoreBtn').addEventListener('click', submitScore);
-
-// Init
+// init
 (async function init(){
-  // começa SEMPRE no assistente
-  await loadTeachers();
-  showStep(1);
+  const savedName = localStorage.getItem('teacherNameLocal');
+  if (savedName) el('teacherNameLocal').value = savedName;
+  el('teacherNameLocal').addEventListener('change', ()=> localStorage.setItem('teacherNameLocal', el('teacherNameLocal').value));
+  await loadMeta();
 })();
 </script>
 </body>

@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Gameboard – Plataforma</title>
+  <link rel="stylesheet" href="game-scores.css">
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- Topbar: professor -->
+    <div class="topbar">
+      <div class="top-left">
+        <div class="logo">🎮 Gameboard</div>
+        <div class="divider-vert"></div>
+        <label class="label-lg">Professor</label>
+        <select id="teacherSelect" class="big-select" title="Professor"></select>
+        <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
+      </div>
+      <div class="top-right">
+        <button class="btn blue" id="goScore">Ir para página de pontuações →</button>
+      </div>
+    </div>
+
+    <!-- Seção: Classes -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Classes</h2>
+        <div class="muted">Selecione uma classe para ver os grupos.</div>
+      </div>
+      <div id="classGrid" class="card-grid"></div>
+    </div>
+
+    <div class="divider-hz"></div>
+
+    <!-- Seção: Grupos da classe selecionada -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Grupos <span class="muted" id="classNameBadge">—</span></h2>
+        <div class="section-actions">
+          <button class="btn guava" id="resetGroups">Resetar grupos</button>
+        </div>
+      </div>
+      <div id="groupGrid" class="card-grid"></div>
+    </div>
+
+    <div class="divider-hz"></div>
+
+    <!-- Seção: Categorias & modo de avaliação -->
+    <div class="section">
+      <div class="section-head">
+        <h2>Categorias</h2>
+        <div class="muted">Ex.: Estética, Tema Proposto, Apresentação, Pontuação Única…</div>
+      </div>
+      <div id="catGrid" class="chip-grid"></div>
+
+      <div class="toggle-wrap">
+        <div class="toggle">
+          <input id="toggleIndividual" type="checkbox">
+          <label for="toggleIndividual" class="toggle-ui"></label>
+        </div>
+        <div class="toggle-label">
+          <span class="left">Pontuar apenas o grupo por inteiro</span>
+          <span class="right">Dar pontos individuais aos alunos (irá somar na média)</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="msg" class="muted" style="margin-top:14px"></div>
+  </div>
+
+  <!-- Modal/Popup reutilizável com barra de progresso -->
+  <div class="modal hidden" id="progressModal" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-title" id="progressTitle">Processando…</div>
+      <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="modal-sub" id="progressSub">Aguarde um instante.</div>
+      <div class="modal-actions">
+        <button class="btn blue" id="modalOk" style="display:none">OK</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================================
+   CONFIG
+========================================= */
+const API_BASE = 'https://script.google.com/macros/s/AKfycbyR-RPapWOIt3XHMyxciwj60zn6naKWdFYwoGG_3HhBA2Qh9rELk3Y5oiv4rov7JczT/exec'; // <<<<<<<<<<<<<< TROQUE AQUI
+
+/* =========================================
+   Utilitários
+========================================= */
+const el = id => document.getElementById(id);
+function jsonp(url){
+  return new Promise((resolve, reject)=>{
+    const cb = 'cb_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    window[cb] = (data)=>{ resolve(data); delete window[cb]; s.remove(); };
+    s.onerror = ()=>{ delete window[cb]; reject(new Error('Falha JSONP')); };
+    s.src = url + (url.includes('?')?'&':'?') + 'callback=' + cb;
+    document.body.appendChild(s);
+  });
+}
+function showProgress(title, sub, showOk=false){
+  el('progressTitle').textContent = title || 'Processando…';
+  el('progressSub').textContent = sub || 'Aguarde um instante.';
+  el('progressBar').style.width = '0%';
+  el('modalOk').style.display = showOk ? '' : 'none';
+  el('progressModal').classList.remove('hidden');
+  // anima (fake) até 90%
+  let pct = 0, stop=false;
+  const tick = setInterval(()=>{
+    if (stop) return;
+    pct = Math.min(90, pct + 10 + Math.random()*10);
+    el('progressBar').style.width = pct + '%';
+  }, 120);
+  return {
+    done: (okTitle) => {
+      stop = true; clearInterval(tick);
+      el('progressTitle').textContent = okTitle || 'Concluído!';
+      el('progressBar').style.width = '100%';
+      el('modalOk').style.display = '';
+    },
+    fail: (msg) => {
+      stop = true; clearInterval(tick);
+      el('progressTitle').textContent = 'Erro';
+      el('progressSub').textContent = msg || 'Tente novamente.';
+      el('modalOk').style.display = '';
+    },
+    hide: () => el('progressModal').classList.add('hidden')
+  };
+}
+
+/* =========================================
+   Estado
+========================================= */
+let TEACHER = null;
+let CLASSES = [];       // array de strings
+let GROUPS = [];        // [{id,name,image,members:[]}]
+let CATEGORIES = [];    // [{name,order}]
+let INDIVIDUAL_ON = false;
+
+/* =========================================
+   DOM builders
+========================================= */
+// --- Classes
+function classCard(name, selected){
+  const d = document.createElement('div');
+  d.className = 'class-card' + (selected?' selected':'');
+  d.dataset.id = name;
+  d.innerHTML = `
+    <div class="class-head">
+      <div class="class-title">${name}</div>
+      <button class="icon-btn red" title="Excluir classe" data-del="1">−</button>
+    </div>
+  `;
+  d.addEventListener('click', (e)=>{
+    if (e.target && e.target.dataset.del) return; // não trocar ao clicar no deletar
+    setSelectedClass(name);
+  });
+  d.querySelector('[data-del]').addEventListener('click', (e)=>{
+    e.stopPropagation();
+    deleteClass(name);
+  });
+  return d;
+}
+function plusClassCard(){
+  const d = document.createElement('button');
+  d.className = 'class-card plus-card';
+  d.innerHTML = `<div class="plus">+</div><div>Criar classe</div>`;
+  d.addEventListener('click', ()=> openCreateClass());
+  return d;
+}
+
+// --- Grupos
+function groupCard(g){
+  const d = document.createElement('div');
+  d.className = 'group-card';
+  d.dataset.id = g.id;
+  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
+  d.innerHTML = `
+    <div class="group-head">
+      <div class="group-photo"><img alt="" src="${img}"></div>
+      <div class="group-title">${g.name}</div>
+    </div>
+    <div class="group-members" data-list></div>
+    <div class="group-add">
+      <input class="big-input" placeholder="Nome do aluno"/>
+      <button class="btn green" data-add>Adicionar</button>
+    </div>
+    <div class="group-actions">
+      <button class="btn blue" data-save>Salvar</button>
+    </div>
+  `;
+  // popula alunos
+  updateMemberList(d.querySelector('[data-list]'), g.members||[], g.id);
+  // handlers
+  d.querySelector('[data-add]').addEventListener('click', ()=>{
+    const inp = d.querySelector('.group-add input');
+    const name = (inp.value||'').trim();
+    if (!name) return;
+    // adiciona visualmente
+    addMemberChip(d.querySelector('[data-list]'), name, g.id);
+    inp.value='';
+  });
+  d.querySelector('[data-save]').addEventListener('click', async ()=>{
+    const names = Array.from(d.querySelectorAll('.member-chip[data-name]')).map(n=>n.dataset.name);
+    await setStudents(g.id, names);
+  });
+  return d;
+}
+function addMemberChip(listEl, name, gid){
+  const chip = document.createElement('div');
+  chip.className = 'member-chip';
+  chip.dataset.name = name;
+  chip.innerHTML = `<span>${name}</span><button class="icon-btn red" title="Remover">−</button>`;
+  chip.querySelector('button').addEventListener('click', async ()=>{
+    chip.remove();
+    await removeStudent(gid, name); // backend remove, mas manter “setSave” cobre tudo ao final
+  });
+  listEl.appendChild(chip);
+}
+function updateMemberList(listEl, names, gid){
+  listEl.innerHTML = '';
+  (names||[]).forEach(n=> addMemberChip(listEl, n, gid));
+}
+function plusGroupCard(){
+  const d = document.createElement('button');
+  d.className = 'group-card plus-card';
+  d.innerHTML = `<div class="plus">+</div><div>Criar grupo</div>`;
+  d.addEventListener('click', ()=> openCreateGroup());
+  return d;
+}
+
+// --- Categorias
+function catChip(c){
+  const d = document.createElement('div');
+  d.className = 'cat-chip';
+  d.dataset.name = c.name;
+  d.innerHTML = `<span>${c.name}</span><button class="icon-btn red" title="Excluir">−</button>`;
+  d.querySelector('button').addEventListener('click', ()=> deleteCategory(c.name));
+  return d;
+}
+function plusCatChip(){
+  const d = document.createElement('button');
+  d.className = 'cat-chip plus-chip';
+  d.innerHTML = `<div class="plus">+</div><div>Criar categoria</div>`;
+  d.addEventListener('click', ()=> openCreateCategory());
+  return d;
+}
+
+/* =========================================
+   Reconciliação (atualiza sem piscar)
+========================================= */
+function syncClassGrid(){
+  const grid = el('classGrid');
+  const want = CLASSES.slice();
+  const have = new Map(Array.from(grid.children).map(n=>[n.dataset.id||'__plus__', n]));
+  // limpa tudo e remonta de forma simples (poucos itens)
+  grid.innerHTML = '';
+  want.forEach(c=>{
+    grid.appendChild(classCard(c, c===getSelectedClass()));
+  });
+  grid.appendChild(plusClassCard());
+}
+function syncGroupGrid(){
+  const grid = el('groupGrid');
+  const have = new Map(Array.from(grid.children).map(n=>[n.dataset.id||'__plus__', n]));
+  const frag = document.createDocumentFragment();
+  (GROUPS||[]).forEach(g=>{
+    let node = have.get(g.id);
+    if (!node) node = groupCard(g);
+    else {
+      // atualizar lista de membros e título/foto
+      node.querySelector('.group-title').textContent = g.name;
+      const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
+      const imgEl = node.querySelector('.group-photo img');
+      if (imgEl.src !== img) imgEl.src = img;
+      updateMemberList(node.querySelector('[data-list]'), g.members||[], g.id);
+    }
+    frag.appendChild(node);
+    have.delete(g.id);
+  });
+  // remove sobras
+  have.forEach(n => n.remove());
+  frag.appendChild(plusGroupCard());
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+}
+function syncCatGrid(){
+  const grid = el('catGrid');
+  grid.innerHTML = '';
+  (CATEGORIES||[]).forEach(c=> grid.appendChild(catChip(c)));
+  grid.appendChild(plusCatChip());
+}
+
+/* =========================================
+   API calls
+========================================= */
+async function loadTeachers(){
+  const data = await jsonp(`${API_BASE}?route=teachers`);
+  const sel = el('teacherSelect'); sel.innerHTML='';
+  (data.teachers||[]).forEach(t=>{
+    const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
+  });
+  const saved = localStorage.getItem('teacherId');
+  if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
+  TEACHER = sel.value || null;
+}
+async function createTeacherFlow(){
+  const name = prompt('Seu nome completo:');
+  if (!name) return;
+  const prog = showProgress('Criando professor…','Preparando planilha');
+  try{
+    const res = await jsonp(`${API_BASE}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=mixed`);
+    if (!res || !res.ok) throw new Error('Falha ao criar');
+    await loadTeachers();
+    el('teacherSelect').value = res.teacherId;
+    TEACHER = res.teacherId;
+    localStorage.setItem('teacherId', TEACHER);
+    prog.done('Professor criado!');
+  }catch(e){
+    prog.fail(e.message);
+  }
+}
+async function loadClasses(){
+  if (!TEACHER) return;
+  const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
+  CLASSES = data.classes || [];
+  if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
+  syncClassGrid();
+}
+async function createClass(name){
+  if (!TEACHER) return;
+  const prog = showProgress('Criando classe…');
+  try{
+    await jsonp(`${API_BASE}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(name)}`);
+    await loadClasses();
+    setSelectedClass(name);
+    prog.done('Classe criada!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function deleteClass(name){
+  if (!confirm(`Excluir a classe "${name}"?\nIsso apagará grupos, alunos e pontuações dessa classe.`)) return;
+  const prog = showProgress('Excluindo classe…');
+  try{
+    await jsonp(`${API_BASE}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(name)}&confirm=yes`);
+    await loadClasses();
+    await loadGroups();
+    await loadCategories();
+    prog.done('Classe excluída!');
+  }catch(e){ prog.fail(e.message); }
+}
+
+async function loadGroups(){
+  if (!TEACHER || !getSelectedClass()) { GROUPS=[]; syncGroupGrid(); return; }
+  const data = await jsonp(`${API_BASE}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
+  GROUPS = data.groups || [];
+  el('classNameBadge').textContent = getSelectedClass() || '—';
+  syncGroupGrid();
+}
+async function createGroup(name){
+  const img = prompt('URL da foto do grupo (opcional):') || '';
+  const prog = showProgress('Criando grupo…');
+  try{
+    await jsonp(`${API_BASE}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(name)}&imageURL=${encodeURIComponent(img)}`);
+    await loadGroups();
+    prog.done('Grupo criado!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function setStudents(groupId, names){
+  const prog = showProgress('Salvando alunos…');
+  try{
+    await jsonp(`${API_BASE}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+    await loadGroups();
+    prog.done('Alunos salvos!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function removeStudent(groupId, name){
+  // silencioso e rápido; UI já removeu
+  await jsonp(`${API_BASE}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
+}
+async function resetGroupsAll(){
+  if (!confirm('Você já salvou em PDF? Isto apagará TODOS os grupos, alunos e pontuações desta classe.')) return;
+  const prog = showProgress('Resetando grupos…');
+  try{
+    await jsonp(`${API_BASE}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
+    await loadGroups();
+    prog.done('Grupos resetados!');
+  }catch(e){ prog.fail(e.message); }
+}
+
+async function loadCategories(){
+  if (!TEACHER || !getSelectedClass()) { CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
+  const data = await jsonp(`${API_BASE}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
+  CATEGORIES = data.categories || [];
+  INDIVIDUAL_ON = !!data.individualOn;
+  el('toggleIndividual').checked = INDIVIDUAL_ON;
+  syncCatGrid();
+}
+async function addCategory(name){
+  const prog = showProgress('Criando categoria…');
+  try{
+    await jsonp(`${API_BASE}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    await loadCategories();
+    prog.done('Categoria criada!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function deleteCategory(name){
+  if (!confirm(`Excluir a categoria "${name}"?`)) return;
+  const prog = showProgress('Excluindo categoria…');
+  try{
+    await jsonp(`${API_BASE}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    await loadCategories();
+    prog.done('Categoria excluída!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function setIndividual(on){
+  const prog = showProgress('Salvando preferência…');
+  try{
+    await jsonp(`${API_BASE}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
+    INDIVIDUAL_ON = on;
+    prog.done('Preferência salva!');
+  }catch(e){ prog.fail(e.message); }
+}
+
+/* =========================================
+   Fluxos de UI
+========================================= */
+function getSelectedClass(){ return localStorage.getItem(`selectedClass_${TEACHER}`) || null; }
+function setSelectedClass(name, doLoads=true){
+  if (!name){ localStorage.removeItem(`selectedClass_${TEACHER}`); el('classNameBadge').textContent='—'; return; }
+  localStorage.setItem(`selectedClass_${TEACHER}`, name);
+  el('classNameBadge').textContent = name;
+  syncClassGrid();
+  if (doLoads){ loadGroups(); loadCategories(); }
+}
+function openCreateClass(){
+  const name = prompt('Nome da classe:');
+  if (!name) return;
+  createClass(name);
+}
+function openCreateGroup(){
+  const name = prompt('Nome do grupo:');
+  if (!name) return;
+  createGroup(name);
+}
+function openCreateCategory(){
+  const name = prompt('Nome da categoria:');
+  if (!name) return;
+  addCategory(name);
+}
+
+/* =========================================
+   Eventos
+========================================= */
+el('btnCreateTeacher').addEventListener('click', createTeacherFlow);
+el('teacherSelect').addEventListener('change', async ()=>{
+  TEACHER = el('teacherSelect').value;
+  localStorage.setItem('teacherId', TEACHER);
+  await loadClasses();
+  await loadGroups();
+  await loadCategories();
+});
+el('resetGroups').addEventListener('click', resetGroupsAll);
+el('toggleIndividual').addEventListener('change', (e)=> setIndividual(e.target.checked));
+el('goScore').addEventListener('click', ()=>{
+  const c = getSelectedClass();
+  if (!TEACHER || !c){ alert('Escolha professor e classe.'); return; }
+  window.location.href = `score.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`;
+});
+el('modalOk').addEventListener('click', ()=> {
+  el('progressModal').classList.add('hidden');
+});
+
+/* =========================================
+   Init
+========================================= */
+(async function init(){
+  await loadTeachers();
+  await loadClasses();
+  await loadGroups();
+  await loadCategories();
+})();
+</script>
+</body>
+</html>

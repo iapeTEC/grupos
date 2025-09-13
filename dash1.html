@@ -1,221 +1,233 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Apresentação Games</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Gameboard – Dashboard</title>
   <link rel="stylesheet" href="game-scores.css">
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="dns-prefetch" href="https://script.google.com">
 </head>
 <body>
   <div class="wrap">
-    <h1>
-      Apresentação – <span id="teacherLabel">—</span>
-      <span class="muted">·</span> <span id="classLabel">—</span>
-    </h1>
-
-    <div class="row">
-      <select id="teacherSelect" title="Professor"></select>
-      <select id="classSelect" title="Turma"></select>
-      <button class="btn blue" id="printBtn">Imprimir / Salvar PDF</button>
-      <button class="btn red" id="resetBtn">Resetar Turma</button>
+    <div class="card" style="margin-bottom:14px">
+      <div class="row" style="gap:12px; align-items:flex-end;">
+        <div style="flex:1">
+          <label class="label-lg">Professor</label>
+          <select id="teacherSelect" class="big-select"></select>
+        </div>
+        <div style="flex:1">
+          <label class="label-lg">Turma</label>
+          <select id="classSelect" class="big-select"></select>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="btn blue" id="printBtn">Imprimir / PDF</button>
+          <button class="btn red" id="resetBtn">Resetar Turma</button>
+          <button class="btn" id="goBack">← Voltar ao painel</button>
+        </div>
+      </div>
+      <div class="muted" id="msgTop" style="margin-top:8px"></div>
     </div>
 
+    <h2 id="title">Apresentação – <span id="classLabel">—</span></h2>
     <div id="grid" class="grid"></div>
-    <div id="msg" class="muted"></div>
+    <div id="msg" class="muted" style="margin-top:8px"></div>
   </div>
 
 <script>
+/* ========= CONFIG ========= */
 const API_BASE = 'https://script.google.com/macros/s/AKfycbzq9FNFIENdA7TLUj_SXs5G0ZZGCJ9IWDkhsBkt2iKL5CuM7sMCUDga8auyPz5pHk5_8A/exec';
+const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
-function jsonp(url){
+/* ========= HELPERS ========= */
+const el = id => document.getElementById(id);
+const qs = name => new URLSearchParams(location.search).get(name);
+
+function jsonp(url, {timeoutMs=12000} = {}){
   return new Promise((resolve, reject)=>{
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     const s = document.createElement('script');
-    window[cb] = (data) => { resolve(data); delete window[cb]; s.remove(); };
-    s.onerror = () => { delete window[cb]; reject(new Error('Falha JSONP')); };
+    let done=false;
+    const timer = setTimeout(()=>{ if(done)return; done=true; cleanup(); reject(new Error('Falha JSONP (timeout) em: '+url)); }, timeoutMs);
+    function cleanup(){ clearTimeout(timer); try{ delete window[cb]; }catch(_){ } s.remove(); }
+    window[cb] = (data)=>{ if(done)return; done=true; cleanup(); resolve(data); };
+    s.onerror = ()=>{ if(done)return; done=true; cleanup(); reject(new Error('Falha JSONP (onerror) em: '+url)); };
     s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
     document.body.appendChild(s);
   });
 }
-const el = id => document.getElementById(id);
-const pct = x => Math.max(0, Math.min(100, Math.round(x)));
+function pct(x){ return Math.max(0, Math.min(100, Math.round(x))); }
 
-let CURRENT_TEACHER = null;
-let CURRENT_CLASS = null;
-let REFRESHING = false;
-let TIMER = null;
+/* ========= STATE ========= */
+let TEACHER = null;
+let CLASS = null;
+let TEACHERS = [];
+let CLASSES = [];
+let LAST_STANDINGS = []; // para reconciliação
+let POLL_TIMER = null;
 
-function cardSkeleton(id){
-  const d = document.createElement('div');
-  d.className = 'card';
-  d.dataset.id = id;
+/* ========= UI builders ========= */
+function cardNode(g){
+  const p = pct(g.progress||0);
+  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
+  const d = document.createElement('div'); d.className='card'; d.dataset.id = g.id;
   d.innerHTML = `
     <div class="head">
-      <div class="rank">–</div>
-      <div class="name">—</div>
-      <div class="total">0.00 pts</div>
+      <div class="rank" data-rank>–</div>
+      <div class="name" data-name>${g.name}</div>
+      <div class="total" data-total>${(g.total||0).toFixed(2)} pts</div>
     </div>
     <div class="bar">
-      <div class="fill" style="width:0%"></div>
-      <div class="runner" style="left:-17px">
-        <img src="https://i.imgur.com/8Km9tLL.png" alt=""/>
+      <div class="fill" data-fill style="width:${p}%"></div>
+      <div class="runner" data-runner style="left: calc(${p}% - 17px)">
+        <img src="${img}" alt="${g.name}"/>
       </div>
     </div>
-    <div class="members"></div>
+    <div class="members" data-members>${(g.members||[]).join(', ')}</div>
   `;
   return d;
 }
 
-function updateCard(dom, g, idx){
-  const p = pct(g.progress);
-  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
-  dom.querySelector('.rank').textContent = idx + 1;
-  dom.querySelector('.name').textContent = g.name;
-  dom.querySelector('.total').textContent = `${Number(g.total).toFixed(2)} pts`;
-  dom.querySelector('.fill').style.width = p + '%';
-  dom.querySelector('.runner').style.left = `calc(${p}% - 17px)`;
-  const pic = dom.querySelector('.runner img');
-  if (pic.src !== img) pic.src = img;
-  dom.querySelector('.members').textContent = (g.members||[]).join(', ');
-}
-
-function syncStandings(list){
+/* ========= Reconciliação sem flicker ========= */
+function reconcileStandings(list){
   const grid = el('grid');
-  const wantIds = list.map(g => g.id);
-  const have = new Map(Array.from(grid.children).map(n => [n.dataset.id, n]));
 
-  // Atualiza/Cria em ordem desejada (evita limpar a grade)
+  // Indexar nós existentes
+  const existing = new Map(Array.from(grid.children).filter(n=>n.dataset && n.dataset.id).map(n => [n.dataset.id, n]));
   const frag = document.createDocumentFragment();
-  list.forEach((g, idx) => {
-    let node = have.get(g.id);
-    if (!node) {
-      node = cardSkeleton(g.id);
-      node.style.opacity = '0';
-      // entra suavemente
-      requestAnimationFrame(()=> node.style.opacity = '');
-    }
-    updateCard(node, g, idx);
-    frag.appendChild(node);
-    have.delete(g.id); // marca como processado
-  });
 
-  // Remove os que sobraram (não existem mais) com fade-out
-  have.forEach(node => {
-    node.classList.add('fade-out');
-    setTimeout(() => node.remove(), 200); // casa com .2s do CSS
-  });
-
-  // Reordena inserindo o fragment (mover nós existentes não pisca)
-  grid.appendChild(frag);
-}
-
-async function loadTeachers(){
-  try{
-    el('msg').textContent = 'Carregando professores...';
-    const data = await jsonp(`${API_BASE}?route=teachers`);
-    const teachers = data.teachers || [];
-    const sel = el('teacherSelect'); sel.innerHTML = '';
-    teachers.forEach(t=>{
-      const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
-    });
-    const urlTeacher = new URLSearchParams(location.search).get('teacher');
-    const saved = localStorage.getItem('selectedTeacher');
-    CURRENT_TEACHER = urlTeacher || saved || (teachers[0] && teachers[0].id) || null;
-    if (CURRENT_TEACHER && teachers.some(t=>t.id===CURRENT_TEACHER)) sel.value = CURRENT_TEACHER;
-    else { CURRENT_TEACHER = teachers[0] ? teachers[0].id : null; if (CURRENT_TEACHER) sel.value=CURRENT_TEACHER; }
-    el('teacherLabel').textContent = (teachers.find(t=>t.id===CURRENT_TEACHER)||{}).name || '—';
-    el('msg').textContent = teachers.length ? '' : 'Nenhum professor cadastrado.';
-  }catch(err){
-    el('msg').textContent = 'Erro ao carregar professores: ' + err.message;
-  }
-}
-
-async function loadClasses(){
-  const selClass = el('classSelect'); selClass.innerHTML = '';
-  if (!CURRENT_TEACHER){
-    el('msg').textContent = 'Selecione um professor.';
-    el('classLabel').textContent = '—';
-    return;
-  }
-  try{
-    el('msg').textContent = 'Carregando turmas...';
-    const data = await jsonp(`${API_BASE}?route=classes&teacher=${encodeURIComponent(CURRENT_TEACHER)}`);
-    const classes = data.classes || [];
-    classes.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; selClass.appendChild(o); });
-
-    const urlClass = new URLSearchParams(location.search).get('class');
-    const savedKey = `selectedClass_${CURRENT_TEACHER}`;
-    const saved = localStorage.getItem(savedKey);
-    CURRENT_CLASS = urlClass || saved || data.defaultClass || classes[0] || null;
-
-    if (CURRENT_CLASS && classes.includes(CURRENT_CLASS)) selClass.value = CURRENT_CLASS;
-    else { CURRENT_CLASS = classes[0] || null; if (CURRENT_CLASS) selClass.value = CURRENT_CLASS; }
-
-    el('classLabel').textContent = CURRENT_CLASS || '—';
-    el('msg').textContent = '';
-  }catch(err){
-    el('msg').textContent = 'Erro ao carregar turmas: ' + err.message;
-  }
-}
-
-async function refreshStandings(){
-  if (!CURRENT_TEACHER || !CURRENT_CLASS || REFRESHING) return;
-  REFRESHING = true;
-  try{
-    const data = await jsonp(`${API_BASE}?route=standings&teacher=${encodeURIComponent(CURRENT_TEACHER)}&class=${encodeURIComponent(CURRENT_CLASS)}`);
-    const list = data.standings || [];
-    syncStandings(list);
-    el('msg').textContent = list.length ? '' : 'Sem grupos para esta turma.';
-  }catch(err){
-    el('msg').textContent = 'Erro ao carregar: ' + err.message;
-  }finally{
-    REFRESHING = false;
-  }
-}
-
-async function resetClass(){
-  if (!CURRENT_TEACHER || !CURRENT_CLASS) { alert('Selecione professor e turma.'); return; }
-  const ok = confirm('Você já salvou em PDF? Ao confirmar, TODOS os grupos, alunos e pontuações desta turma serão apagados.');
-  if (!ok) return;
-  try{
-    const res = await jsonp(`${API_BASE}?route=resetClass&teacher=${encodeURIComponent(CURRENT_TEACHER)}&class=${encodeURIComponent(CURRENT_CLASS)}&confirm=yes`);
-    if (res && res.ok){
-      alert(`Reset concluído para ${CURRENT_CLASS}.\nRemovidos: ${res.cleared.groups} grupos, ${res.cleared.members} alunos, ${res.cleared.scores} pontuações.`);
-      refreshStandings();
-    } else if (res && res.confirmRequired) {
-      alert('Confirmação necessária (&confirm=yes).');
+  list.forEach((g, i)=>{
+    let node = existing.get(g.id);
+    const p = pct(g.progress||0);
+    if (!node){
+      node = cardNode(g);
     } else {
+      // atualizar no lugar
+      node.querySelector('[data-rank]').textContent = (i+1);
+      node.querySelector('[data-name]').textContent = g.name;
+      node.querySelector('[data-total]').textContent = `${(g.total||0).toFixed(2)} pts`;
+      node.querySelector('[data-members]').textContent = (g.members||[]).join(', ');
+      // animar barra suavemente
+      const fill = node.querySelector('[data-fill]');
+      const runner = node.querySelector('[data-runner]');
+      requestAnimationFrame(()=>{
+        fill.style.width = p + '%';
+        runner.style.left = `calc(${p}% - 17px)`;
+      });
+      existing.delete(g.id);
+    }
+    // rank (para novos e antigos)
+    node.querySelector('[data-rank]').textContent = (i+1);
+    frag.appendChild(node);
+  });
+
+  // remove nós que saíram
+  existing.forEach(node => node.remove());
+
+  // substitui conteúdo de forma estável
+  grid.innerHTML = '';
+  grid.appendChild(frag);
+
+  LAST_STANDINGS = list;
+}
+
+/* ========= API calls ========= */
+async function loadTeachers(){
+  const data = await jsonp(`${API}?route=teachers`);
+  TEACHERS = data.teachers || [];
+  const sel = el('teacherSelect'); sel.innerHTML='';
+  TEACHERS.forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o); });
+
+  // preferências
+  const fromUrl = qs('teacher');
+  const saved = localStorage.getItem('teacherId');
+  if (fromUrl && TEACHERS.some(t=>t.id===fromUrl)) sel.value = fromUrl;
+  else if (saved && TEACHERS.some(t=>t.id===saved)) sel.value = saved;
+
+  TEACHER = sel.value || null;
+}
+async function loadClasses(){
+  if (!TEACHER){ CLASSES=[]; el('classSelect').innerHTML=''; return; }
+  const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
+  CLASSES = data.classes || [];
+  const sel = el('classSelect'); sel.innerHTML='';
+  CLASSES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+
+  const fromUrl = qs('class');
+  const saved = localStorage.getItem(`selectedClass_${TEACHER}`);
+  if (fromUrl && CLASSES.includes(fromUrl)) sel.value = fromUrl;
+  else if (saved && CLASSES.includes(saved)) sel.value = saved;
+
+  CLASS = sel.value || null;
+  el('classLabel').textContent = CLASS || '—';
+}
+async function loadStandings(){
+  if (!TEACHER || !CLASS){ el('msg').textContent = 'Selecione professor e turma.'; reconcileStandings([]); return; }
+  try{
+    const data = await jsonp(`${API}?route=standings&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}`);
+    const list = (data && data.standings) ? data.standings : [];
+    if (list.length === 0){
+      el('msg').textContent = 'Sem grupos para esta turma.';
+    } else {
+      el('msg').textContent = '';
+    }
+    reconcileStandings(list);
+  }catch(e){
+    el('msg').textContent = 'Erro ao carregar: ' + e.message;
+  }
+}
+async function resetClass(){
+  if (!TEACHER || !CLASS){ alert('Selecione professor e turma.'); return; }
+  if (!confirm(`Você já salvou em PDF?\nIsto apagará TODOS os grupos, alunos e pontuações de "${CLASS}".`)) return;
+  try{
+    const res = await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}&confirm=yes`);
+    if (res && res.ok){
+      alert('Reset concluído.');
+      await loadStandings();
+    }else{
       alert('Falha ao resetar.');
     }
-  }catch(e){
-    alert('Erro: ' + e.message);
-  }
+  }catch(e){ alert('Erro: ' + e.message); }
 }
 
-// Eventos
+/* ========= Eventos ========= */
 el('teacherSelect').addEventListener('change', async ()=>{
-  CURRENT_TEACHER = el('teacherSelect').value;
-  localStorage.setItem('selectedTeacher', CURRENT_TEACHER);
-  el('teacherLabel').textContent = el('teacherSelect').selectedOptions[0]?.textContent || '—';
+  TEACHER = el('teacherSelect').value || null;
+  localStorage.setItem('teacherId', TEACHER || '');
   await loadClasses();
-  await refreshStandings();
+  await loadStandings();
 });
-el('classSelect').addEventListener('change', ()=>{
-  CURRENT_CLASS = el('classSelect').value;
-  localStorage.setItem(`selectedClass_${CURRENT_TEACHER}`, CURRENT_CLASS);
-  el('classLabel').textContent = CURRENT_CLASS || '—';
-  refreshStandings();
+el('classSelect').addEventListener('change', async ()=>{
+  CLASS = el('classSelect').value || null;
+  localStorage.setItem(`selectedClass_${TEACHER}`, CLASS || '');
+  el('classLabel').textContent = CLASS || '—';
+  await loadStandings();
 });
-el('printBtn').addEventListener('click', () => window.print());
+el('printBtn').addEventListener('click', ()=> window.print());
 el('resetBtn').addEventListener('click', resetClass);
+el('goBack').addEventListener('click', ()=>{
+  const t = TEACHER ? `?teacher=${encodeURIComponent(TEACHER)}${CLASS ? `&class=${encodeURIComponent(CLASS)}`:''}` : '';
+  location.href = `login.html${t}`;
+});
 
-// Init + polling suave
+/* ========= Init ========= */
 (async function init(){
+  el('msgTop').textContent = 'Carregando…';
+  try{
+    const ping = await jsonp(`${API}?route=about`);
+    if (!ping || !ping.ok) throw new Error('Backend inacessível');
+  }catch(e){
+    el('msgTop').textContent = 'Backend inacessível. Verifique a URL do Web App e permissões.';
+    throw e;
+  }
   await loadTeachers();
   await loadClasses();
-  await refreshStandings();
-  if (TIMER) clearInterval(TIMER);
-  TIMER = setInterval(refreshStandings, 15000); // sem piscar
+  await loadStandings();
+  el('msgTop').textContent = '';
+
+  // polling suave a cada 15s (sem flicker por causa da reconciliação)
+  if (POLL_TIMER) clearInterval(POLL_TIMER);
+  POLL_TIMER = setInterval(loadStandings, 15000);
 })();
 </script>
 </body>

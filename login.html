@@ -80,18 +80,21 @@
           <h2>Categorias</h2>
           <div class="muted">Ex.: Estética, Tema Proposto, Apresentação, Pontuação Única…</div>
         </div>
+
         <div id="catGrid" class="chip-grid"></div>
 
-        <div class="toggle-wrap">
+        <!-- Toggle centralizado e com destaque do estado -->
+        <div class="toggle-wrap centered">
           <div class="toggle">
-            <input id="toggleIndividual" type="checkbox">
+            <input id="toggleIndividual" type="checkbox" aria-label="Modo de pontuação">
             <label for="toggleIndividual" class="toggle-ui"></label>
           </div>
-          <div class="toggle-label">
+          <div id="toggleLabel" class="toggle-label">
             <span class="left">Pontuar apenas o grupo por inteiro</span>
             <span class="right">Dar pontos individuais aos alunos (irá somar na média)</span>
           </div>
         </div>
+
         <div style="margin-top:10px">
           <button class="btn blue" id="btnCreateCategory">Criar categoria +</button>
         </div>
@@ -125,15 +128,15 @@
 
 <script>
 /* ===== CONFIG ===== */
-const API_BASE = 'https://script.google.com/macros/s/AKfycbzq9FNFIENdA7TLUj_SXs5G0ZZGCJ9IWDkhsBkt2iKL5CuM7sMCUDga8auyPz5pHk5_8A/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbx0Et7Mq2vuTvkS3yYIgpphpAJdsVhr8iDa_kCX8BW7v7TBJH7w3XDVd3cP4CNFqvLWRA/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 /* ===== Helpers ===== */
 function el(id){ return document.getElementById(id); }
 const qs = key => new URLSearchParams(location.search).get(key);
 
-/* JSONP com timeout */
-function jsonp(url, {timeoutMs=12000} = {}){
+/* JSONP com timeout (mais curto) */
+function jsonp(url, {timeoutMs=8000} = {}){
   return new Promise((resolve, reject)=>{
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     const s = document.createElement('script');
@@ -145,6 +148,16 @@ function jsonp(url, {timeoutMs=12000} = {}){
     s.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cb;
     document.body.appendChild(s);
   });
+}
+
+/* Mini cache local (stale-while-revalidate) */
+function cacheGet(k){
+  try{ const o = JSON.parse(localStorage.getItem(k)||'null'); if(!o) return null;
+    if (o.exp && Date.now()>o.exp) return null; return o.val;
+  }catch(_){ return null; }
+}
+function cacheSet(k, val, ttlMs=60000){
+  try{ localStorage.setItem(k, JSON.stringify({val, exp: Date.now()+ttlMs})); }catch(_){}
 }
 
 /* Modal de progresso */
@@ -299,6 +312,13 @@ function syncCatGrid(){
   (CATEGORIES||[]).forEach(c=> grid.appendChild(catChip(c)));
 }
 
+/* ===== Toggle label (negrito na opção ativa) ===== */
+function updateToggleLabelUI(){
+  const box = el('toggleLabel');
+  box.classList.toggle('mode-individual', !!INDIVIDUAL_ON);
+  box.classList.toggle('mode-group', !INDIVIDUAL_ON);
+}
+
 /* ===== API ===== */
 async function pingCheck(){
   const ping = await jsonp(`${API}?route=about`);
@@ -306,7 +326,15 @@ async function pingCheck(){
   console.log('Backend', ping.version, ping.time);
 }
 async function loadTeachers(){
+  // cache rápido
+  const cached = cacheGet('teachers');
+  if (cached){
+    const sel = el('teacherSelect'); sel.innerHTML='';
+    (cached||[]).forEach(t=>{ const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o); });
+  }
+  // refresh
   const data = await jsonp(`${API}?route=teachers`);
+  cacheSet('teachers', data.teachers||[]);
   const sel = el('teacherSelect'); sel.innerHTML='';
   (data.teachers||[]).forEach(t=>{
     const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
@@ -325,13 +353,11 @@ async function login(){
 }
 async function enterApp(id){
   TEACHER = id;
-  // Mostrar UI logada
   el('gateBar').classList.add('hidden');
   el('notLogged').classList.add('hidden');
   el('loggedBar').classList.remove('hidden');
   el('app').classList.remove('hidden');
 
-  // Nome do professor no header
   try{
     const data = await jsonp(`${API}?route=teachers`);
     const t = (data.teachers||[]).find(x=>x.id===TEACHER);
@@ -339,13 +365,12 @@ async function enterApp(id){
   }catch(_){ TEACHER_NAME = TEACHER; }
   el('teacherNameTag').textContent = TEACHER_NAME;
 
-  await loadClasses();
-  await loadGroups();
-  await loadCategories();
+  // carrega rápido (em paralelo)
+  await Promise.all([loadClasses(), loadGroups(), loadCategories()]);
+  updateToggleLabelUI();
 }
 function logout(){
   localStorage.removeItem('teacherId');
-  // UI volta ao gate
   el('gateBar').classList.remove('hidden');
   el('notLogged').classList.remove('hidden');
   el('loggedBar').classList.add('hidden');
@@ -354,6 +379,7 @@ function logout(){
   CLASSES=[]; GROUPS=[]; CATEGORIES=[]; INDIVIDUAL_ON=false;
   el('classGrid').innerHTML=''; el('groupGrid').innerHTML=''; el('catGrid').innerHTML='';
   el('classNameBadge').textContent='—';
+  updateToggleLabelUI();
 }
 
 async function createTeacherFlow(){
@@ -377,8 +403,14 @@ async function createTeacherFlow(){
 }
 async function loadClasses(){
   if (!TEACHER) { CLASSES=[]; syncClassGrid(); return; }
+
+  const cacheKey = `classes_${TEACHER}`;
+  const c = cacheGet(cacheKey); if (c){ CLASSES = c; syncClassGrid(); }
+
   const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
   CLASSES = (data.classes || []).map(s=> (s||'').trim());
+  cacheSet(cacheKey, CLASSES);
+
   const fromUrl = qs('class');
   if (fromUrl && CLASSES.includes(fromUrl)) setSelectedClass(fromUrl, false);
   else if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
@@ -416,9 +448,11 @@ async function deleteClass(name){
 }
 async function loadGroups(){
   if (!TEACHER || !getSelectedClass()){ GROUPS=[]; syncGroupGrid(); return; }
+  const cacheKey = `groups_${TEACHER}_${getSelectedClass()}`;
+  const cg = cacheGet(cacheKey); if (cg){ GROUPS = cg; syncGroupGrid(); }
   const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
-  if (data && data.error){ alert(data.error); }
   GROUPS = data.groups || [];
+  cacheSet(cacheKey, GROUPS);
   el('classNameBadge').textContent = getSelectedClass() || '—';
   syncGroupGrid();
 }
@@ -468,15 +502,19 @@ async function resetGroupsAll(){
   }catch(e){ prog.fail(e.message); }
 }
 async function loadCategories(){
-  if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
+  if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); updateToggleLabelUI(); return; }
+  const cacheKey = `cats_${TEACHER}_${getSelectedClass()}`;
+  const cc = cacheGet(cacheKey); if (cc){ CATEGORIES = cc.categories||[]; INDIVIDUAL_ON = !!cc.individualOn; syncCatGrid(); updateToggleLabelUI(); }
   const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
   if (data && data.error){ alert(data.error); return; }
   CATEGORIES = data.categories || [];
   INDIVIDUAL_ON = !!data.individualOn;
+  cacheSet(cacheKey, {categories:CATEGORIES, individualOn:INDIVIDUAL_ON});
   suppressToggleEvent = true;
   el('toggleIndividual').checked = INDIVIDUAL_ON;
   setTimeout(()=>{ suppressToggleEvent = false; }, 0);
   syncCatGrid();
+  updateToggleLabelUI();
 }
 async function addCategory(){
   if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
@@ -491,7 +529,7 @@ async function addCategory(){
     const prog = showProgress('Criando categoria…');
     const res = await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
     if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar categoria');
-    await loadCategories(); prog.done('Categoria criada!');
+    await loadCategories(); prog.done('Categoria criado!');
   }catch(e){
     if (e.message !== 'cancel') alert(e.message);
   }
@@ -511,6 +549,7 @@ async function setIndividual(on){
     const res = await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
     if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar preferência');
     INDIVIDUAL_ON = on; prog.done('Preferência salva!');
+    updateToggleLabelUI();
   }catch(e){ prog.fail(e.message); }
 }
 
@@ -548,14 +587,14 @@ el('modalOk').addEventListener('click', ()=> el('progressModal').classList.add('
 /* ===== Init ===== */
 (async function init(){
   try{
-    await pingCheck();
+    const ping = await jsonp(`${API}?route=about`);
+    if (!ping || !ping.ok) throw new Error('Backend inacessível');
   }catch(e){
     alert('Backend inacessível. Verifique a URL do Web App (API_BASE) e permissões.\n\n' + e.message);
     throw e;
   }
   await loadTeachers();
 
-  // Se já tem login salvo, entra direto
   const saved = localStorage.getItem('teacherId');
   if (saved){
     const data = await jsonp(`${API}?route=teachers`);

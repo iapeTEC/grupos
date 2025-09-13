@@ -58,7 +58,7 @@
   </div></div>
 
 <script>
-const API_BASE = 'https://script.google.com/macros/s/AKfycbx2wDM-i03Qg9exdpE1vB1d5xKUnjgkYTb_SwuYiWoOQwRJiTQ1W-F3HUWOHHZ8WbMqbg/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbytSZsaBOsoI1ZhZNy8irvCaSFhYia9I9zeRJF5W1dNN-QlHGLpMQZlknuRVOKlIbIDzg/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 const el = id => document.getElementById(id);
@@ -95,8 +95,7 @@ async function loadMeta(){
   el('crumbs').textContent = `Professor: ${TEACHER} • Classe: ${CLASS}`;
   el('btnBack').onclick = ()=> location.href = `login.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`;
 
-  // carrega categorias + toggle
-  const meta = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`);
+  const meta = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}`);
   CATEGORIES = meta.categories || []; INDIVIDUAL_ON = !!meta.individualOn;
   el('titleHead').textContent = `Pontuação — ${CLASS}`;
 
@@ -107,7 +106,7 @@ async function loadMeta(){
   compute();
 }
 async function loadGroups(){
-  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`);
+  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}`);
   GROUPS = data.groups || [];
   const sel = el('groupSelect'); sel.innerHTML='';
   GROUPS.forEach(g=>{ const o=document.createElement('option'); o.value=g.id; o.textContent=g.name; sel.appendChild(o); });
@@ -158,7 +157,7 @@ async function submitScore(){
     .filter(p=>!isNaN(p.score));
   const prog = showProgress('Salvando pontuação…');
   try{
-    const data = await jsonp(`${API}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}&groupId=${encodeURIComponent(gid)}&categoriesJSON=${encodeURIComponent(JSON.stringify(cats))}&presentations=${encodeURIComponent(JSON.stringify(pres))}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}`);
+    const data = await jsonp(`${API}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}&groupId=${encodeURIComponent(gid)}&categoriesJSON=${encodeURIComponent(JSON.stringify(cats))}&presentations=${encodeURIComponent(JSON.stringify(pres))}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}`);
     prog.done();
     el('msg').innerHTML = data && data.ok ? `<span style="color:#22c55e">Salvo!</span>` : `<span style="color:#ef4444">Falha ao salvar.</span>`;
     document.querySelectorAll('#studentsBox [data-pres]').forEach(i=> i.value='');

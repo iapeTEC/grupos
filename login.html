@@ -34,6 +34,9 @@
         <div class="muted">Selecione uma classe para ver os grupos.</div>
       </div>
       <div id="classGrid" class="card-grid"></div>
+      <div style="margin-top:10px">
+        <button class="btn purple" id="btnCreateClass">Criar classe +</button>
+      </div>
     </div>
 
     <div class="divider-hz"></div>
@@ -44,6 +47,7 @@
         <h2>Grupos <span class="muted" id="classNameBadge">—</span></h2>
         <div class="section-actions">
           <button class="btn guava" id="resetGroups">Resetar grupos</button>
+          <button class="btn green" id="btnCreateGroup">Criar grupo +</button>
         </div>
       </div>
       <div id="groupGrid" class="card-grid"></div>
@@ -69,6 +73,9 @@
           <span class="right">Dar pontos individuais aos alunos (irá somar na média)</span>
         </div>
       </div>
+      <div style="margin-top:10px">
+        <button class="btn blue" id="btnCreateCategory">Criar categoria +</button>
+      </div>
     </div>
 
     <div id="msg" class="muted" style="margin-top:14px"></div>
@@ -86,7 +93,7 @@
 
 <script>
 /* ===== CONFIG ===== */
-const API_BASE = 'https://script.google.com/macros/s/AKfycbytSZsaBOsoI1ZhZNy8irvCaSFhYia9I9zeRJF5W1dNN-QlHGLpMQZlknuRVOKlIbIDzg/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbzYy3lL2Z6sNS_F_5olxP-CanBCy9Ihtc68b3osa5NPwsdfZH0Ix6rXm6ujE75Qr4WIBA/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 /* ===== JSONP com timeout ===== */
@@ -131,7 +138,7 @@ let CLASSES = [];
 let GROUPS = [];
 let CATEGORIES = [];
 let INDIVIDUAL_ON = false;
-let suppressToggleEvent = false; // evita reset do toggle ao trocar de turma
+let suppressToggleEvent = false;
 
 /* ===== Builders ===== */
 function classCard(name, selected){
@@ -145,13 +152,6 @@ function classCard(name, selected){
     </div>`;
   d.addEventListener('click', (e)=>{ if (e.target && e.target.dataset.del) return; setSelectedClass(name); });
   d.querySelector('[data-del]').addEventListener('click', (e)=>{ e.stopPropagation(); deleteClass(name); });
-  return d;
-}
-function plusClassCard(){
-  const d = document.createElement('button');
-  d.className = 'class-card plus-card';
-  d.innerHTML = `<div class="plus">+</div><div>Criar classe</div>`;
-  d.addEventListener('click', ()=> openCreateClass());
   return d;
 }
 function groupCard(g){
@@ -183,13 +183,6 @@ function groupCard(g){
   });
   return d;
 }
-function plusGroupCard(){
-  const d = document.createElement('button');
-  d.className = 'group-card plus-card';
-  d.innerHTML = `<div class="plus">+</div><div>Criar grupo</div>`;
-  d.addEventListener('click', ()=> openCreateGroup());
-  return d;
-}
 function addMemberChip(listEl, name, gid){
   const chip = document.createElement('div');
   chip.className = 'member-chip'; chip.dataset.name = name;
@@ -210,20 +203,12 @@ function catChip(c){
   d.querySelector('button').addEventListener('click', ()=> deleteCategory(c.name));
   return d;
 }
-function plusCatChip(){
-  const d = document.createElement('button');
-  d.className = 'cat-chip plus-chip';
-  d.innerHTML = `<div class="plus">+</div><div>Criar categoria</div>`;
-  d.addEventListener('click', ()=> openCreateCategory());
-  return d;
-}
 
 /* ===== Reconciliação ===== */
 function syncClassGrid(){
   const grid = el('classGrid');
   grid.innerHTML = '';
   (CLASSES||[]).forEach(c=> grid.appendChild(classCard(c, c===getSelectedClass())));
-  grid.appendChild(plusClassCard());
 }
 function syncGroupGrid(){
   const grid = el('groupGrid');
@@ -245,18 +230,13 @@ function syncGroupGrid(){
   existing.forEach(node => node.remove());
   grid.innerHTML = '';
   next.forEach(n => grid.appendChild(n));
-  grid.appendChild(plusGroupCard());
-}
-function syncCatGrid(){
-  const grid = el('catGrid'); grid.innerHTML='';
-  (CATEGORIES||[]).forEach(c=> grid.appendChild(catChip(c)));
-  grid.appendChild(plusCatChip());
 }
 
 /* ===== API ===== */
 async function pingCheck(){
-  const ping = await jsonp(`${API}?route=ping`);
+  const ping = await jsonp(`${API}?route=about`);
   if (!ping || !ping.ok) throw new Error('Ping falhou');
+  console.log('Backend', ping.version, ping.time);
 }
 async function loadTeachers(){
   const data = await jsonp(`${API}?route=teachers`);
@@ -276,7 +256,7 @@ async function createTeacherFlow(){
   const prog = showProgress('Criando professor…','Preparando planilha');
   try{
     const res = await jsonp(`${API}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=mixed`);
-    if (!res || !res.ok) throw new Error('Falha ao criar');
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar professor');
     await loadTeachers();
     el('teacherSelect').value = res.teacherId; TEACHER = res.teacherId;
     localStorage.setItem('teacherId', TEACHER);
@@ -284,7 +264,7 @@ async function createTeacherFlow(){
   }catch(e){ prog.fail(e.message); }
 }
 async function loadClasses(){
-  if (!TEACHER) return;
+  if (!TEACHER) { CLASSES=[]; syncClassGrid(); return; }
   const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
   CLASSES = (data.classes || []).map(s=> (s||'').trim());
   const fromUrl = qs('class');
@@ -292,68 +272,77 @@ async function loadClasses(){
   else if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
   syncClassGrid();
 }
-async function createClass(name){
-  if (!TEACHER) return;
-  const clean = (name||'').trim().replace(/\s+/g,' ');
+async function createClass(){
+  if (!TEACHER){ alert('Escolha (ou cadastre) um professor antes.'); return; }
+  const name = prompt('Nome da classe:'); if (!name) return;
+  const clean = name.trim().replace(/\s+/g,' ');
   if (!clean) return;
   const prog = showProgress('Criando classe…');
   try{
-    await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(clean)}`);
-    // otimista: se a API ainda não refletiu, já coloca no UI
-    if (!CLASSES.includes(clean)) CLASSES.push(clean);
-    setSelectedClass(clean, false);
-    syncClassGrid();
-    await loadClasses(); // garante refetch
-    prog.done('Classe criada!');
+    const res = await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(clean)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar classe');
+    await loadClasses();
+    setSelectedClass(clean);
+    prog.done('Classe criado!');
   }catch(e){ prog.fail(e.message); }
 }
 async function deleteClass(name){
   if (!confirm(`Excluir a classe "${name}"? Isso apagará grupos, alunos e pontuações.`)) return;
   const prog = showProgress('Excluindo classe…');
   try{
-    await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(name)}&confirm=yes`);
-    await loadClasses(); await loadGroups(); await loadCategories();
+    const res = await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(name)}&confirm=yes`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao excluir classe');
+    await loadClasses(); GROUPS=[]; syncGroupGrid();
     prog.done('Classe excluída!');
   }catch(e){ prog.fail(e.message); }
 }
 async function loadGroups(){
   if (!TEACHER || !getSelectedClass()){ GROUPS=[]; syncGroupGrid(); return; }
   const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
+  if (data && data.error){ alert(data.error); }
   GROUPS = data.groups || [];
   el('classNameBadge').textContent = getSelectedClass() || '—';
   syncGroupGrid();
 }
-async function createGroup(name){
-  const clean = (name||'').trim().replace(/\s+/g,' ');
-  if (!clean) return;
+async function createGroup(){
+  if (!TEACHER){ alert('Escolha um professor.'); return; }
+  if (!getSelectedClass()){ alert('Selecione uma classe antes de criar grupo.'); return; }
+  const name = prompt('Nome do grupo:'); if (!name) return;
+  const clean = name.trim().replace(/\s+/g,' ');
   const img = prompt('URL da foto do grupo (opcional):') || '';
   const prog = showProgress('Criando grupo…');
   try{
-    await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(clean)}&imageURL=${encodeURIComponent(img)}`);
+    const res = await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(clean)}&imageURL=${encodeURIComponent(img)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar grupo');
     await loadGroups(); prog.done('Grupo criado!');
   }catch(e){ prog.fail(e.message); }
 }
 async function setStudents(groupId, names){
   const prog = showProgress('Salvando alunos…');
   try{
-    await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+    const res = await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar alunos');
     await loadGroups(); prog.done('Alunos salvos!');
   }catch(e){ prog.fail(e.message); }
 }
 async function removeStudent(groupId, name){
-  await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
+  const res = await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
+  if (res && res.error) alert(res.error);
 }
 async function resetGroupsAll(){
+  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
   if (!confirm('Você já salvou em PDF? Isto apagará TODOS os grupos, alunos e pontuações desta classe.')) return;
   const prog = showProgress('Resetando grupos…');
   try{
-    await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
+    const res = await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao resetar');
     await loadGroups(); prog.done('Grupos resetados!');
   }catch(e){ prog.fail(e.message); }
 }
 async function loadCategories(){
   if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
   const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
+  if (data && data.error){ alert(data.error); return; }
   CATEGORIES = data.categories || [];
   INDIVIDUAL_ON = !!data.individualOn;
   suppressToggleEvent = true;
@@ -361,12 +350,15 @@ async function loadCategories(){
   setTimeout(()=>{ suppressToggleEvent = false; }, 0);
   syncCatGrid();
 }
-async function addCategory(name){
-  const clean = (name||'').trim().replace(/\s+/g,' ');
+async function addCategory(){
+  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
+  const name = prompt('Nome da categoria:'); if (!name) return;
+  const clean = name.trim().replace(/\s+/g,' ');
   if (!clean) return;
   const prog = showProgress('Criando categoria…');
   try{
-    await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
+    const res = await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar categoria');
     await loadCategories(); prog.done('Categoria criada!');
   }catch(e){ prog.fail(e.message); }
 }
@@ -374,14 +366,16 @@ async function deleteCategory(name){
   if (!confirm(`Excluir a categoria "${name}"?`)) return;
   const prog = showProgress('Excluindo categoria…');
   try{
-    await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    const res = await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao excluir categoria');
     await loadCategories(); prog.done('Categoria excluída!');
   }catch(e){ prog.fail(e.message); }
 }
 async function setIndividual(on){
   const prog = showProgress('Salvando preferência…');
   try{
-    await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
+    const res = await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar preferência');
     INDIVIDUAL_ON = on; prog.done('Preferência salva!');
   }catch(e){ prog.fail(e.message); }
 }
@@ -396,20 +390,21 @@ function setSelectedClass(name, doLoads=true){
   syncClassGrid();
   if (doLoads){ loadGroups(); loadCategories(); }
 }
-function openCreateClass(){ const name = prompt('Nome da classe:'); if (name) createClass(name); }
-function openCreateGroup(){ const name = prompt('Nome do grupo:'); if (name) createGroup(name); }
-function openCreateCategory(){ const name = prompt('Nome da categoria:'); if (name) addCategory(name); }
 
 /* ===== Eventos ===== */
 el('btnCreateTeacher').addEventListener('click', createTeacherFlow);
 el('teacherSelect').addEventListener('change', async ()=>{
-  TEACHER = el('teacherSelect').value;
-  localStorage.setItem('teacherId', TEACHER);
+  TEACHER = el('teacherSelect').value || null;
+  if (TEACHER) localStorage.setItem('teacherId', TEACHER);
   await loadClasses(); await loadGroups(); await loadCategories();
 });
+el('btnCreateClass').addEventListener('click', createClass);
+el('btnCreateGroup').addEventListener('click', createGroup);
+el('btnCreateCategory').addEventListener('click', addCategory);
 el('resetGroups').addEventListener('click', resetGroupsAll);
 el('toggleIndividual').addEventListener('change', (e)=>{
-  if (suppressToggleEvent) return; // não salva quando foi mudança programática
+  if (suppressToggleEvent) return;
+  if (!getSelectedClass()){ e.target.checked = !!INDIVIDUAL_ON; alert('Selecione uma classe.'); return; }
   setIndividual(e.target.checked);
 });
 el('goScore').addEventListener('click', ()=>{
@@ -421,8 +416,12 @@ el('modalOk').addEventListener('click', ()=> el('progressModal').classList.add('
 
 /* ===== Init ===== */
 (async function init(){
-  try{ await pingCheck(); }
-  catch(e){ alert('Backend inacessível. Verifique API_BASE e permissões do Web App.\n\n' + e.message); throw e; }
+  try{
+    await pingCheck();
+  }catch(e){
+    alert('Backend inacessível. Verifique a URL do Web App (API_BASE) e permissões.\n\n' + e.message);
+    throw e;
+  }
   await loadTeachers();
   await loadClasses();
   await loadGroups();

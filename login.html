@@ -18,63 +18,74 @@
       <div class="top-left">
         <div class="logo">🎮 Gameboard</div>
         <div class="divider-vert"></div>
-        <label class="label-lg">Professor</label>
-        <select id="teacherSelect" class="big-select"></select>
-        <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
+        <div id="loginArea">
+          <label class="label-lg">Professor</label>
+          <select id="teacherSelect" class="big-select"></select>
+          <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
+          <button class="btn blue" id="btnLogin">Entrar</button>
+        </div>
+        <div id="userArea" class="hidden">
+          <span class="label-lg" id="userName"></span>
+          <button class="btn red" id="btnLogout">Sair</button>
+        </div>
       </div>
       <div class="top-right">
         <button class="btn blue" id="goScore">Ir para página de pontuações →</button>
       </div>
     </div>
 
-    <!-- Classes -->
-    <div class="section">
-      <div class="section-head">
-        <h2>Classes</h2>
-        <div class="muted">Selecione uma classe para ver os grupos.</div>
-      </div>
-      <div id="classGrid" class="card-grid"></div>
-      <div style="margin-top:10px">
-        <button class="btn purple" id="btnCreateClass">Criar classe +</button>
-      </div>
-    </div>
+    <!-- Seções do app (aparecem só após login) -->
+    <div id="appSections" class="hidden">
 
-    <div class="divider-hz"></div>
-
-    <!-- Grupos -->
-    <div class="section">
-      <div class="section-head">
-        <h2>Grupos <span class="muted" id="classNameBadge">—</span></h2>
-        <div class="section-actions">
-          <button class="btn guava" id="resetGroups">Resetar grupos</button>
-          <button class="btn green" id="btnCreateGroup">Criar grupo +</button>
+      <!-- Classes -->
+      <div class="section">
+        <div class="section-head">
+          <h2>Classes</h2>
+          <div class="muted">Selecione uma classe para ver os grupos.</div>
+        </div>
+        <div id="classGrid" class="card-grid"></div>
+        <div style="margin-top:10px">
+          <button class="btn purple" id="btnCreateClass">Criar classe +</button>
         </div>
       </div>
-      <div id="groupGrid" class="card-grid"></div>
-    </div>
 
-    <div class="divider-hz"></div>
+      <div class="divider-hz"></div>
 
-    <!-- Categorias + toggle -->
-    <div class="section">
-      <div class="section-head">
-        <h2>Categorias</h2>
-        <div class="muted">Ex.: Estética, Tema Proposto, Apresentação, Pontuação Única…</div>
-      </div>
-      <div id="catGrid" class="chip-grid"></div>
-
-      <div class="toggle-wrap">
-        <div class="toggle">
-          <input id="toggleIndividual" type="checkbox">
-          <label for="toggleIndividual" class="toggle-ui"></label>
+      <!-- Grupos -->
+      <div class="section">
+        <div class="section-head">
+          <h2>Grupos <span class="muted" id="classNameBadge">—</span></h2>
+          <div class="section-actions">
+            <button class="btn guava" id="resetGroups">Resetar grupos</button>
+            <button class="btn green" id="btnCreateGroup">Criar grupo +</button>
+          </div>
         </div>
-        <div class="toggle-label">
-          <span class="left">Pontuar apenas o grupo por inteiro</span>
-          <span class="right">Dar pontos individuais aos alunos (irá somar na média)</span>
-        </div>
+        <div id="groupGrid" class="card-grid"></div>
       </div>
-      <div style="margin-top:10px">
-        <button class="btn blue" id="btnCreateCategory">Criar categoria +</button>
+
+      <div class="divider-hz"></div>
+
+      <!-- Categorias + toggle -->
+      <div class="section">
+        <div class="section-head">
+          <h2>Categorias</h2>
+          <div class="muted">Ex.: Estética, Tema Proposto, Apresentação, Pontuação Única…</div>
+        </div>
+        <div id="catGrid" class="chip-grid"></div>
+
+        <div class="toggle-wrap">
+          <div class="toggle">
+            <input id="toggleIndividual" type="checkbox">
+            <label for="toggleIndividual" class="toggle-ui"></label>
+          </div>
+          <div class="toggle-label">
+            <span class="left">Pontuar apenas o grupo por inteiro</span>
+            <span class="right">Dar pontos individuais aos alunos (irá somar na média)</span>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn blue" id="btnCreateCategory">Criar categoria +</button>
+        </div>
       </div>
     </div>
 
@@ -93,7 +104,7 @@
 
 <script>
 /* ===== CONFIG ===== */
-const API_BASE = 'https://script.google.com/macros/s/AKfycbzYy3lL2Z6sNS_F_5olxP-CanBCy9Ihtc68b3osa5NPwsdfZH0Ix6rXm6ujE75Qr4WIBA/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbwNhItnXY_I9fu1MfQQZSAvuM9kHTsZO_E5Eq3XjPxlO_ZunrweL_JxxoiuA96amiOJ3w/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 /* ===== JSONP com timeout ===== */
@@ -134,6 +145,7 @@ function showProgress(title, sub, showOk=false){
 
 /* ===== Estado ===== */
 let TEACHER = null;
+let TEACHER_NAME = '';
 let CLASSES = [];
 let GROUPS = [];
 let CATEGORIES = [];
@@ -145,288 +157,4 @@ function classCard(name, selected){
   const d = document.createElement('div');
   d.className = 'class-card' + (selected?' selected':'');
   d.dataset.id = name;
-  d.innerHTML = `
-    <div class="class-head">
-      <div class="class-title">${name}</div>
-      <button class="icon-btn red" title="Excluir classe" data-del="1">−</button>
-    </div>`;
-  d.addEventListener('click', (e)=>{ if (e.target && e.target.dataset.del) return; setSelectedClass(name); });
-  d.querySelector('[data-del]').addEventListener('click', (e)=>{ e.stopPropagation(); deleteClass(name); });
-  return d;
-}
-function groupCard(g){
-  const d = document.createElement('div');
-  d.className = 'group-card'; d.dataset.id = g.id;
-  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
-  d.innerHTML = `
-    <div class="group-head">
-      <div class="group-photo"><img alt="" src="${img}"></div>
-      <div class="group-title">${g.name}</div>
-    </div>
-    <div class="group-members" data-list></div>
-    <div class="group-add">
-      <input class="big-input" placeholder="Nome do aluno"/>
-      <button class="btn green" data-add>Adicionar</button>
-    </div>
-    <div class="group-actions">
-      <button class="btn blue" data-save>Salvar</button>
-    </div>`;
-  updateMemberList(d.querySelector('[data-list]'), g.members||[], g.id);
-  d.querySelector('[data-add]').addEventListener('click', ()=>{
-    const inp = d.querySelector('.group-add input');
-    const name = (inp.value||'').trim(); if (!name) return;
-    addMemberChip(d.querySelector('[data-list]'), name, g.id); inp.value='';
-  });
-  d.querySelector('[data-save]').addEventListener('click', async ()=>{
-    const names = Array.from(d.querySelectorAll('.member-chip[data-name]')).map(n=>n.dataset.name);
-    await setStudents(g.id, names);
-  });
-  return d;
-}
-function addMemberChip(listEl, name, gid){
-  const chip = document.createElement('div');
-  chip.className = 'member-chip'; chip.dataset.name = name;
-  chip.innerHTML = `<span>${name}</span><button class="icon-btn red" title="Remover">−</button>`;
-  chip.querySelector('button').addEventListener('click', async ()=>{
-    chip.remove();
-    await removeStudent(gid, name);
-  });
-  listEl.appendChild(chip);
-}
-function updateMemberList(listEl, names, gid){
-  listEl.innerHTML = ''; (names||[]).forEach(n=> addMemberChip(listEl, n, gid));
-}
-function catChip(c){
-  const d = document.createElement('div');
-  d.className = 'cat-chip'; d.dataset.name = c.name;
-  d.innerHTML = `<span>${c.name}</span><button class="icon-btn red" title="Excluir">−</button>`;
-  d.querySelector('button').addEventListener('click', ()=> deleteCategory(c.name));
-  return d;
-}
-
-/* ===== Reconciliação ===== */
-function syncClassGrid(){
-  const grid = el('classGrid');
-  grid.innerHTML = '';
-  (CLASSES||[]).forEach(c=> grid.appendChild(classCard(c, c===getSelectedClass())));
-}
-function syncGroupGrid(){
-  const grid = el('groupGrid');
-  const existing = new Map(Array.from(grid.children).filter(n => n.dataset && n.dataset.id).map(n => [n.dataset.id, n]));
-  const next = [];
-  (GROUPS||[]).forEach(g=>{
-    let node = existing.get(g.id);
-    if (!node) node = groupCard(g);
-    else {
-      node.querySelector('.group-title').textContent = g.name;
-      const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
-      const imgEl = node.querySelector('.group-photo img');
-      if (imgEl && imgEl.src !== img) imgEl.src = img;
-      updateMemberList(node.querySelector('[data-list]'), g.members||[], g.id);
-      existing.delete(g.id);
-    }
-    next.push(node);
-  });
-  existing.forEach(node => node.remove());
-  grid.innerHTML = '';
-  next.forEach(n => grid.appendChild(n));
-}
-
-/* ===== API ===== */
-async function pingCheck(){
-  const ping = await jsonp(`${API}?route=about`);
-  if (!ping || !ping.ok) throw new Error('Ping falhou');
-  console.log('Backend', ping.version, ping.time);
-}
-async function loadTeachers(){
-  const data = await jsonp(`${API}?route=teachers`);
-  const sel = el('teacherSelect'); sel.innerHTML='';
-  (data.teachers||[]).forEach(t=>{
-    const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
-  });
-  const fromUrl = qs('teacher');
-  const saved = localStorage.getItem('teacherId');
-  if (fromUrl && (data.teachers||[]).some(t=>t.id===fromUrl)) sel.value = fromUrl;
-  else if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
-  TEACHER = sel.value || null;
-  if (TEACHER) localStorage.setItem('teacherId', TEACHER);
-}
-async function createTeacherFlow(){
-  const name = prompt('Seu nome completo:'); if (!name) return;
-  const prog = showProgress('Criando professor…','Preparando planilha');
-  try{
-    const res = await jsonp(`${API}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=mixed`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar professor');
-    await loadTeachers();
-    el('teacherSelect').value = res.teacherId; TEACHER = res.teacherId;
-    localStorage.setItem('teacherId', TEACHER);
-    prog.done('Professor criado!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function loadClasses(){
-  if (!TEACHER) { CLASSES=[]; syncClassGrid(); return; }
-  const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
-  CLASSES = (data.classes || []).map(s=> (s||'').trim());
-  const fromUrl = qs('class');
-  if (fromUrl && CLASSES.includes(fromUrl)) setSelectedClass(fromUrl, false);
-  else if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
-  syncClassGrid();
-}
-async function createClass(){
-  if (!TEACHER){ alert('Escolha (ou cadastre) um professor antes.'); return; }
-  const name = prompt('Nome da classe:'); if (!name) return;
-  const clean = name.trim().replace(/\s+/g,' ');
-  if (!clean) return;
-  const prog = showProgress('Criando classe…');
-  try{
-    const res = await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(clean)}`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar classe');
-    await loadClasses();
-    setSelectedClass(clean);
-    prog.done('Classe criado!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function deleteClass(name){
-  if (!confirm(`Excluir a classe "${name}"? Isso apagará grupos, alunos e pontuações.`)) return;
-  const prog = showProgress('Excluindo classe…');
-  try{
-    const res = await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(name)}&confirm=yes`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao excluir classe');
-    await loadClasses(); GROUPS=[]; syncGroupGrid();
-    prog.done('Classe excluída!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function loadGroups(){
-  if (!TEACHER || !getSelectedClass()){ GROUPS=[]; syncGroupGrid(); return; }
-  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
-  if (data && data.error){ alert(data.error); }
-  GROUPS = data.groups || [];
-  el('classNameBadge').textContent = getSelectedClass() || '—';
-  syncGroupGrid();
-}
-async function createGroup(){
-  if (!TEACHER){ alert('Escolha um professor.'); return; }
-  if (!getSelectedClass()){ alert('Selecione uma classe antes de criar grupo.'); return; }
-  const name = prompt('Nome do grupo:'); if (!name) return;
-  const clean = name.trim().replace(/\s+/g,' ');
-  const img = prompt('URL da foto do grupo (opcional):') || '';
-  const prog = showProgress('Criando grupo…');
-  try{
-    const res = await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(clean)}&imageURL=${encodeURIComponent(img)}`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar grupo');
-    await loadGroups(); prog.done('Grupo criado!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function setStudents(groupId, names){
-  const prog = showProgress('Salvando alunos…');
-  try{
-    const res = await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar alunos');
-    await loadGroups(); prog.done('Alunos salvos!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function removeStudent(groupId, name){
-  const res = await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
-  if (res && res.error) alert(res.error);
-}
-async function resetGroupsAll(){
-  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
-  if (!confirm('Você já salvou em PDF? Isto apagará TODOS os grupos, alunos e pontuações desta classe.')) return;
-  const prog = showProgress('Resetando grupos…');
-  try{
-    const res = await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao resetar');
-    await loadGroups(); prog.done('Grupos resetados!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function loadCategories(){
-  if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
-  const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
-  if (data && data.error){ alert(data.error); return; }
-  CATEGORIES = data.categories || [];
-  INDIVIDUAL_ON = !!data.individualOn;
-  suppressToggleEvent = true;
-  el('toggleIndividual').checked = INDIVIDUAL_ON;
-  setTimeout(()=>{ suppressToggleEvent = false; }, 0);
-  syncCatGrid();
-}
-async function addCategory(){
-  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
-  const name = prompt('Nome da categoria:'); if (!name) return;
-  const clean = name.trim().replace(/\s+/g,' ');
-  if (!clean) return;
-  const prog = showProgress('Criando categoria…');
-  try{
-    const res = await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar categoria');
-    await loadCategories(); prog.done('Categoria criada!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function deleteCategory(name){
-  if (!confirm(`Excluir a categoria "${name}"?`)) return;
-  const prog = showProgress('Excluindo categoria…');
-  try{
-    const res = await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao excluir categoria');
-    await loadCategories(); prog.done('Categoria excluída!');
-  }catch(e){ prog.fail(e.message); }
-}
-async function setIndividual(on){
-  const prog = showProgress('Salvando preferência…');
-  try{
-    const res = await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
-    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar preferência');
-    INDIVIDUAL_ON = on; prog.done('Preferência salva!');
-  }catch(e){ prog.fail(e.message); }
-}
-
-/* ===== UI flows ===== */
-function getSelectedClass(){ return TEACHER ? (localStorage.getItem(`selectedClass_${TEACHER}`) || null) : null; }
-function setSelectedClass(name, doLoads=true){
-  if (!TEACHER) return;
-  if (!name){ localStorage.removeItem(`selectedClass_${TEACHER}`); el('classNameBadge').textContent='—'; return; }
-  localStorage.setItem(`selectedClass_${TEACHER}`, name);
-  el('classNameBadge').textContent = name;
-  syncClassGrid();
-  if (doLoads){ loadGroups(); loadCategories(); }
-}
-
-/* ===== Eventos ===== */
-el('btnCreateTeacher').addEventListener('click', createTeacherFlow);
-el('teacherSelect').addEventListener('change', async ()=>{
-  TEACHER = el('teacherSelect').value || null;
-  if (TEACHER) localStorage.setItem('teacherId', TEACHER);
-  await loadClasses(); await loadGroups(); await loadCategories();
-});
-el('btnCreateClass').addEventListener('click', createClass);
-el('btnCreateGroup').addEventListener('click', createGroup);
-el('btnCreateCategory').addEventListener('click', addCategory);
-el('resetGroups').addEventListener('click', resetGroupsAll);
-el('toggleIndividual').addEventListener('change', (e)=>{
-  if (suppressToggleEvent) return;
-  if (!getSelectedClass()){ e.target.checked = !!INDIVIDUAL_ON; alert('Selecione uma classe.'); return; }
-  setIndividual(e.target.checked);
-});
-el('goScore').addEventListener('click', ()=>{
-  const c = getSelectedClass();
-  if (!TEACHER || !c){ alert('Escolha professor e classe.'); return; }
-  window.location.href = `pontuacao.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`;
-});
-el('modalOk').addEventListener('click', ()=> el('progressModal').classList.add('hidden'));
-
-/* ===== Init ===== */
-(async function init(){
-  try{
-    await pingCheck();
-  }catch(e){
-    alert('Backend inacessível. Verifique a URL do Web App (API_BASE) e permissões.\n\n' + e.message);
-    throw e;
-  }
-  await loadTeachers();
-  await loadClasses();
-  await loadGroups();
-  await loadCategories();
-})();
-</script>
-</body>
-</html>
+  d.innerHTML =

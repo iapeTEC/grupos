@@ -12,21 +12,24 @@
 </head>
 <body>
   <div class="wrap">
-
     <!-- Topbar -->
     <div class="topbar">
       <div class="top-left">
         <div class="logo">🎮 Gameboard</div>
         <div class="divider-vert"></div>
-        <div id="loginArea">
-          <label class="label-lg">Professor</label>
-          <select id="teacherSelect" class="big-select"></select>
-          <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
-          <button class="btn blue" id="btnLogin">Entrar</button>
-        </div>
-        <div id="userArea" class="hidden">
-          <span class="label-lg" id="userName"></span>
-          <button class="btn red" id="btnLogout">Sair</button>
+        <div id="userArea">
+          <!-- estado não logado -->
+          <div id="gateBar">
+            <label class="label-lg">Professor</label>
+            <select id="teacherSelect" class="big-select"></select>
+            <button class="btn blue" id="btnLogin">Entrar</button>
+            <button class="btn green btn-lg" id="btnCreateTeacher">Cadastrar professor +</button>
+          </div>
+          <!-- estado logado -->
+          <div id="loggedBar" class="hidden">
+            <div class="label-lg">Olá, <b id="teacherNameTag"></b></div>
+            <button class="btn red" id="btnLogout">Sair</button>
+          </div>
         </div>
       </div>
       <div class="top-right">
@@ -34,8 +37,14 @@
       </div>
     </div>
 
-    <!-- Seções do app (aparecem só após login) -->
-    <div id="appSections" class="hidden">
+    <!-- Aviso quando não logado -->
+    <div id="notLogged" class="card" style="margin-top:14px;">
+      <h2>Bem-vindo!</h2>
+      <p class="muted">Faça login selecionando seu nome ou cadastre-se clicando em <b>Cadastrar professor +</b>.</p>
+    </div>
+
+    <!-- App (só aparece logado) -->
+    <div id="app" class="hidden">
 
       <!-- Classes -->
       <div class="section">
@@ -87,12 +96,12 @@
           <button class="btn blue" id="btnCreateCategory">Criar categoria +</button>
         </div>
       </div>
-    </div>
 
-    <div id="msg" class="muted" style="margin-top:14px"></div>
+      <div id="msg" class="muted" style="margin-top:14px"></div>
+    </div>
   </div>
 
-  <!-- Modal/progresso -->
+  <!-- Modal de progresso -->
   <div class="modal hidden" id="progressModal" role="dialog" aria-modal="true">
     <div class="modal-box">
       <div class="modal-title" id="progressTitle">Processando…</div>
@@ -102,12 +111,28 @@
     </div>
   </div>
 
+  <!-- Modal de input (cadastro / criação) -->
+  <div class="modal hidden" id="promptModal" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-title" id="promptTitle">Título</div>
+      <div id="promptBody"></div>
+      <div class="modal-actions">
+        <button class="btn" id="promptCancel">Cancelar</button>
+        <button class="btn green" id="promptOk">Salvar</button>
+      </div>
+    </div>
+  </div>
+
 <script>
 /* ===== CONFIG ===== */
-const API_BASE = 'https://script.google.com/macros/s/AKfycbwNhItnXY_I9fu1MfQQZSAvuM9kHTsZO_E5Eq3XjPxlO_ZunrweL_JxxoiuA96amiOJ3w/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbzq9FNFIENdA7TLUj_SXs5G0ZZGCJ9IWDkhsBkt2iKL5CuM7sMCUDga8auyPz5pHk5_8A/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
-/* ===== JSONP com timeout ===== */
+/* ===== Helpers ===== */
+function el(id){ return document.getElementById(id); }
+const qs = key => new URLSearchParams(location.search).get(key);
+
+/* JSONP com timeout */
 function jsonp(url, {timeoutMs=12000} = {}){
   return new Promise((resolve, reject)=>{
     const cb = 'cb_' + Math.random().toString(36).slice(2);
@@ -121,10 +146,8 @@ function jsonp(url, {timeoutMs=12000} = {}){
     document.body.appendChild(s);
   });
 }
-const el = id => document.getElementById(id);
-const qs = key => new URLSearchParams(location.search).get(key);
 
-/* ===== Modal de progresso ===== */
+/* Modal de progresso */
 function showProgress(title, sub, showOk=false){
   el('progressTitle').textContent = title || 'Processando…';
   el('progressSub').textContent = sub || 'Aguarde um instante.';
@@ -143,9 +166,37 @@ function showProgress(title, sub, showOk=false){
   };
 }
 
+/* Modal de input (promisificado) */
+function showPrompt({title='Digite', fields=[{name:'value', label:'Valor', placeholder:''}], okText='Salvar'}){
+  return new Promise((resolve,reject)=>{
+    el('promptTitle').textContent = title;
+    const body = el('promptBody'); body.innerHTML = '';
+    fields.forEach(f=>{
+      const w = document.createElement('div'); w.style.margin = '10px 0';
+      const id = 'in_' + f.name;
+      w.innerHTML = `<label class="label-lg">${f.label||''}</label>
+        <input id="${id}" class="big-input" placeholder="${f.placeholder||''}" value="${f.initial||''}">`;
+      body.appendChild(w);
+    });
+    el('promptOk').textContent = okText;
+    const modal = el('promptModal');
+    function cleanup(){ modal.classList.add('hidden'); ok.removeEventListener('click', onOk); cancel.removeEventListener('click', onCancel); }
+    function onOk(){
+      const out = {};
+      fields.forEach(f=> out[f.name] = (el('in_'+f.name).value||'').trim());
+      cleanup(); resolve(out);
+    }
+    function onCancel(){ cleanup(); reject(new Error('cancel')); }
+    const ok = el('promptOk'), cancel = el('promptCancel');
+    ok.addEventListener('click', onOk); cancel.addEventListener('click', onCancel);
+    modal.classList.remove('hidden');
+    const first = body.querySelector('input'); if (first) first.focus();
+  });
+}
+
 /* ===== Estado ===== */
 let TEACHER = null;
-let TEACHER_NAME = '';
+let TEACHER_NAME = null;
 let CLASSES = [];
 let GROUPS = [];
 let CATEGORIES = [];
@@ -157,4 +208,363 @@ function classCard(name, selected){
   const d = document.createElement('div');
   d.className = 'class-card' + (selected?' selected':'');
   d.dataset.id = name;
-  d.innerHTML =
+  d.innerHTML = `
+    <div class="class-head">
+      <div class="class-title">${name}</div>
+      <button class="icon-btn red" title="Excluir classe" data-del="1">−</button>
+    </div>`;
+  d.addEventListener('click', (e)=>{ if (e.target && e.target.dataset.del) return; setSelectedClass(name); });
+  d.querySelector('[data-del]').addEventListener('click', (e)=>{ e.stopPropagation(); deleteClass(name); });
+  return d;
+}
+function groupCard(g){
+  const d = document.createElement('div');
+  d.className = 'group-card'; d.dataset.id = g.id;
+  const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
+  d.innerHTML = `
+    <div class="group-head">
+      <div class="group-photo"><img alt="" src="${img}"></div>
+      <div class="group-title">${g.name}</div>
+    </div>
+    <div class="group-members" data-list></div>
+    <div class="group-add">
+      <input class="big-input" placeholder="Nome do aluno"/>
+      <button class="btn green" data-add>Adicionar</button>
+    </div>
+    <div class="group-actions">
+      <button class="btn blue" data-save>Salvar</button>
+    </div>`;
+  updateMemberList(d.querySelector('[data-list]'), g.members||[], g.id);
+  d.querySelector('[data-add]').addEventListener('click', ()=>{
+    const inp = d.querySelector('.group-add input');
+    const name = (inp.value||'').trim(); if (!name) return;
+    addMemberChip(d.querySelector('[data-list]'), name, g.id); inp.value='';
+  });
+  d.querySelector('[data-save]').addEventListener('click', async ()=>{
+    const names = Array.from(d.querySelectorAll('.member-chip[data-name]')).map(n=>n.dataset.name);
+    await setStudents(g.id, names);
+  });
+  return d;
+}
+function addMemberChip(listEl, name, gid){
+  const chip = document.createElement('div');
+  chip.className = 'member-chip'; chip.dataset.name = name;
+  chip.innerHTML = `<span>${name}</span><button class="icon-btn red" title="Remover">−</button>`;
+  chip.querySelector('button').addEventListener('click', async ()=>{
+    chip.remove();
+    await removeStudent(gid, name);
+  });
+  listEl.appendChild(chip);
+}
+function updateMemberList(listEl, names, gid){
+  listEl.innerHTML = ''; (names||[]).forEach(n=> addMemberChip(listEl, n, gid));
+}
+function catChip(c){
+  const d = document.createElement('div');
+  d.className = 'cat-chip'; d.dataset.name = c.name;
+  d.innerHTML = `<span>${c.name}</span><button class="icon-btn red" title="Excluir">−</button>`;
+  d.querySelector('button').addEventListener('click', ()=> deleteCategory(c.name));
+  return d;
+}
+
+/* ===== Reconciliação ===== */
+function syncClassGrid(){
+  const grid = el('classGrid');
+  grid.innerHTML = '';
+  (CLASSES||[]).forEach(c=> grid.appendChild(classCard(c, c===getSelectedClass())));
+}
+function syncGroupGrid(){
+  const grid = el('groupGrid');
+  const existing = new Map(Array.from(grid.children).filter(n => n.dataset && n.dataset.id).map(n => [n.dataset.id, n]));
+  const next = [];
+  (GROUPS||[]).forEach(g=>{
+    let node = existing.get(g.id);
+    if (!node) node = groupCard(g);
+    else {
+      node.querySelector('.group-title').textContent = g.name;
+      const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
+      const imgEl = node.querySelector('.group-photo img');
+      if (imgEl && imgEl.src !== img) imgEl.src = img;
+      updateMemberList(node.querySelector('[data-list]'), g.members||[], g.id);
+      existing.delete(g.id);
+    }
+    next.push(node);
+  });
+  existing.forEach(node => node.remove());
+  grid.innerHTML = '';
+  next.forEach(n => grid.appendChild(n));
+}
+function syncCatGrid(){
+  const grid = el('catGrid'); grid.innerHTML='';
+  (CATEGORIES||[]).forEach(c=> grid.appendChild(catChip(c)));
+}
+
+/* ===== API ===== */
+async function pingCheck(){
+  const ping = await jsonp(`${API}?route=about`);
+  if (!ping || !ping.ok) throw new Error('Ping falhou');
+  console.log('Backend', ping.version, ping.time);
+}
+async function loadTeachers(){
+  const data = await jsonp(`${API}?route=teachers`);
+  const sel = el('teacherSelect'); sel.innerHTML='';
+  (data.teachers||[]).forEach(t=>{
+    const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
+  });
+  const fromUrl = qs('teacher');
+  const saved = localStorage.getItem('teacherId');
+  if (fromUrl && (data.teachers||[]).some(t=>t.id===fromUrl)) sel.value = fromUrl;
+  else if (saved && (data.teachers||[]).some(t=>t.id===saved)) sel.value = saved;
+}
+async function login(){
+  const sel = el('teacherSelect');
+  const id = sel.value;
+  if (!id){ alert('Selecione um professor ou cadastre um.'); return; }
+  localStorage.setItem('teacherId', id);
+  await enterApp(id);
+}
+async function enterApp(id){
+  TEACHER = id;
+  // Mostrar UI logada
+  el('gateBar').classList.add('hidden');
+  el('notLogged').classList.add('hidden');
+  el('loggedBar').classList.remove('hidden');
+  el('app').classList.remove('hidden');
+
+  // Nome do professor no header
+  try{
+    const data = await jsonp(`${API}?route=teachers`);
+    const t = (data.teachers||[]).find(x=>x.id===TEACHER);
+    TEACHER_NAME = t ? t.name : TEACHER;
+  }catch(_){ TEACHER_NAME = TEACHER; }
+  el('teacherNameTag').textContent = TEACHER_NAME;
+
+  await loadClasses();
+  await loadGroups();
+  await loadCategories();
+}
+function logout(){
+  localStorage.removeItem('teacherId');
+  // UI volta ao gate
+  el('gateBar').classList.remove('hidden');
+  el('notLogged').classList.remove('hidden');
+  el('loggedBar').classList.add('hidden');
+  el('app').classList.add('hidden');
+  TEACHER = null; TEACHER_NAME = null;
+  CLASSES=[]; GROUPS=[]; CATEGORIES=[]; INDIVIDUAL_ON=false;
+  el('classGrid').innerHTML=''; el('groupGrid').innerHTML=''; el('catGrid').innerHTML='';
+  el('classNameBadge').textContent='—';
+}
+
+async function createTeacherFlow(){
+  try{
+    const r = await showPrompt({
+      title:'Cadastrar professor',
+      fields:[{name:'name', label:'Seu nome completo', placeholder:'Ex.: Prof. Bruno'}],
+      okText:'Cadastrar'
+    });
+    const name = r.name;
+    if (!name) return;
+    const prog = showProgress('Criando professor…','Preparando planilha');
+    const res = await jsonp(`${API}?route=createTeacher&teacherName=${encodeURIComponent(name)}&mode=mixed`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar professor');
+    await loadTeachers();
+    el('teacherSelect').value = res.teacherId;
+    prog.done('Professor criado!');
+  }catch(e){
+    if (e.message !== 'cancel') alert(e.message);
+  }
+}
+async function loadClasses(){
+  if (!TEACHER) { CLASSES=[]; syncClassGrid(); return; }
+  const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
+  CLASSES = (data.classes || []).map(s=> (s||'').trim());
+  const fromUrl = qs('class');
+  if (fromUrl && CLASSES.includes(fromUrl)) setSelectedClass(fromUrl, false);
+  else if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
+  syncClassGrid();
+}
+async function createClass(){
+  if (!TEACHER){ alert('Entre primeiro.'); return; }
+  try{
+    const r = await showPrompt({
+      title:'Criar classe',
+      fields:[{name:'klass', label:'Nome da classe', placeholder:'Ex.: 1 Ano A'}],
+      okText:'Criar'
+    });
+    const clean = (r.klass||'').trim().replace(/\s+/g,' ');
+    if (!clean) return;
+    const prog = showProgress('Criando classe…');
+    const res = await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(clean)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar classe');
+    await loadClasses();
+    setSelectedClass(clean);
+    prog.done('Classe criada!');
+  }catch(e){
+    if (e.message !== 'cancel') alert(e.message);
+  }
+}
+async function deleteClass(name){
+  if (!confirm(`Excluir a classe "${name}"? Isso apagará grupos, alunos e pontuações.`)) return;
+  const prog = showProgress('Excluindo classe…');
+  try{
+    const res = await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(name)}&confirm=yes`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao excluir classe');
+    await loadClasses(); GROUPS=[]; syncGroupGrid();
+    prog.done('Classe excluída!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function loadGroups(){
+  if (!TEACHER || !getSelectedClass()){ GROUPS=[]; syncGroupGrid(); return; }
+  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
+  if (data && data.error){ alert(data.error); }
+  GROUPS = data.groups || [];
+  el('classNameBadge').textContent = getSelectedClass() || '—';
+  syncGroupGrid();
+}
+async function createGroup(){
+  if (!TEACHER){ alert('Entre primeiro.'); return; }
+  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
+  try{
+    const r = await showPrompt({
+      title:'Criar grupo',
+      fields:[
+        {name:'name', label:'Nome do grupo', placeholder:'Ex.: Vingadores'},
+        {name:'img', label:'URL da foto (opcional)', placeholder:'https://...'}
+      ],
+      okText:'Criar'
+    });
+    const gname = (r.name||'').trim().replace(/\s+/g,' ');
+    const img = (r.img||'').trim();
+    if (!gname) return;
+    const prog = showProgress('Criando grupo…');
+    const res = await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(gname)}&imageURL=${encodeURIComponent(img)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar grupo');
+    await loadGroups(); prog.done('Grupo criado!');
+  }catch(e){
+    if (e.message !== 'cancel') alert(e.message);
+  }
+}
+async function setStudents(groupId, names){
+  const prog = showProgress('Salvando alunos…');
+  try{
+    const res = await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar alunos');
+    await loadGroups(); prog.done('Alunos salvos!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function removeStudent(groupId, name){
+  const res = await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
+  if (res && res.error) alert(res.error);
+}
+async function resetGroupsAll(){
+  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
+  if (!confirm('Você já salvou em PDF? Isto apagará TODOS os grupos, alunos e pontuações desta classe.')) return;
+  const prog = showProgress('Resetando grupos…');
+  try{
+    const res = await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao resetar');
+    await loadGroups(); prog.done('Grupos resetados!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function loadCategories(){
+  if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
+  const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
+  if (data && data.error){ alert(data.error); return; }
+  CATEGORIES = data.categories || [];
+  INDIVIDUAL_ON = !!data.individualOn;
+  suppressToggleEvent = true;
+  el('toggleIndividual').checked = INDIVIDUAL_ON;
+  setTimeout(()=>{ suppressToggleEvent = false; }, 0);
+  syncCatGrid();
+}
+async function addCategory(){
+  if (!getSelectedClass()){ alert('Selecione uma classe.'); return; }
+  try{
+    const r = await showPrompt({
+      title:'Criar categoria',
+      fields:[{name:'name', label:'Nome da categoria', placeholder:'Ex.: Apresentação'}],
+      okText:'Criar'
+    });
+    const clean = (r.name||'').trim().replace(/\s+/g,' ');
+    if (!clean) return;
+    const prog = showProgress('Criando categoria…');
+    const res = await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao criar categoria');
+    await loadCategories(); prog.done('Categoria criada!');
+  }catch(e){
+    if (e.message !== 'cancel') alert(e.message);
+  }
+}
+async function deleteCategory(name){
+  if (!confirm(`Excluir a categoria "${name}"?`)) return;
+  const prog = showProgress('Excluindo categoria…');
+  try{
+    const res = await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao excluir categoria');
+    await loadCategories(); prog.done('Categoria excluída!');
+  }catch(e){ prog.fail(e.message); }
+}
+async function setIndividual(on){
+  const prog = showProgress('Salvando preferência…');
+  try{
+    const res = await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
+    if (!res || !res.ok) throw new Error(res && res.error || 'Falha ao salvar preferência');
+    INDIVIDUAL_ON = on; prog.done('Preferência salva!');
+  }catch(e){ prog.fail(e.message); }
+}
+
+/* ===== UI flows ===== */
+function getSelectedClass(){ return TEACHER ? (localStorage.getItem(`selectedClass_${TEACHER}`) || null) : null; }
+function setSelectedClass(name, doLoads=true){
+  if (!TEACHER) return;
+  if (!name){ localStorage.removeItem(`selectedClass_${TEACHER}`); el('classNameBadge').textContent='—'; return; }
+  localStorage.setItem(`selectedClass_${TEACHER}`, name);
+  el('classNameBadge').textContent = name;
+  syncClassGrid();
+  if (doLoads){ loadGroups(); loadCategories(); }
+}
+
+/* ===== Eventos ===== */
+el('btnCreateTeacher').addEventListener('click', createTeacherFlow);
+el('btnLogin').addEventListener('click', login);
+el('btnLogout').addEventListener('click', logout);
+el('btnCreateClass').addEventListener('click', createClass);
+el('btnCreateGroup').addEventListener('click', createGroup);
+el('btnCreateCategory').addEventListener('click', addCategory);
+el('resetGroups').addEventListener('click', resetGroupsAll);
+el('toggleIndividual').addEventListener('change', (e)=>{
+  if (suppressToggleEvent) return;
+  if (!getSelectedClass()){ e.target.checked = !!INDIVIDUAL_ON; alert('Selecione uma classe.'); return; }
+  setIndividual(e.target.checked);
+});
+el('goScore').addEventListener('click', ()=>{
+  const c = getSelectedClass();
+  if (!TEACHER || !c){ alert('Entre e selecione uma classe.'); return; }
+  window.location.href = `pontuacao.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`;
+});
+el('modalOk').addEventListener('click', ()=> el('progressModal').classList.add('hidden'));
+
+/* ===== Init ===== */
+(async function init(){
+  try{
+    await pingCheck();
+  }catch(e){
+    alert('Backend inacessível. Verifique a URL do Web App (API_BASE) e permissões.\n\n' + e.message);
+    throw e;
+  }
+  await loadTeachers();
+
+  // Se já tem login salvo, entra direto
+  const saved = localStorage.getItem('teacherId');
+  if (saved){
+    const data = await jsonp(`${API}?route=teachers`);
+    if ((data.teachers||[]).some(t=>t.id===saved)){
+      await enterApp(saved);
+      el('teacherSelect').value = saved;
+    }
+  }
+})();
+</script>
+</body>
+</html>

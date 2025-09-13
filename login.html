@@ -86,7 +86,7 @@
 
 <script>
 /* ===== CONFIG ===== */
-const API_BASE = 'https://script.google.com/macros/s/AKfycbx2wDM-i03Qg9exdpE1vB1d5xKUnjgkYTb_SwuYiWoOQwRJiTQ1W-F3HUWOHHZ8WbMqbg/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbytSZsaBOsoI1ZhZNy8irvCaSFhYia9I9zeRJF5W1dNN-QlHGLpMQZlknuRVOKlIbIDzg/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 /* ===== JSONP com timeout ===== */
@@ -95,10 +95,7 @@ function jsonp(url, {timeoutMs=12000} = {}){
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     const s = document.createElement('script');
     let done = false;
-    const timer = setTimeout(()=>{
-      if (done) return; done = true; cleanup();
-      reject(new Error('Falha JSONP (timeout) em: ' + url));
-    }, timeoutMs);
+    const timer = setTimeout(()=>{ if (done) return; done = true; cleanup(); reject(new Error('Falha JSONP (timeout) em: ' + url)); }, timeoutMs);
     function cleanup(){ clearTimeout(timer); try{ delete window[cb]; }catch(_){ } s.remove(); }
     window[cb] = (data)=>{ if (done) return; done = true; cleanup(); resolve(data); };
     s.onerror = ()=>{ if (done) return; done = true; cleanup(); reject(new Error('Falha JSONP (onerror) em: ' + url)); };
@@ -230,16 +227,12 @@ function syncClassGrid(){
 }
 function syncGroupGrid(){
   const grid = el('groupGrid');
-  // mapa de nós existentes por id p/ evitar piscar
-  const existing = new Map(Array.from(grid.children)
-    .filter(n => n.dataset && n.dataset.id)
-    .map(n => [n.dataset.id, n]));
+  const existing = new Map(Array.from(grid.children).filter(n => n.dataset && n.dataset.id).map(n => [n.dataset.id, n]));
   const next = [];
   (GROUPS||[]).forEach(g=>{
     let node = existing.get(g.id);
     if (!node) node = groupCard(g);
     else {
-      // atualiza campos
       node.querySelector('.group-title').textContent = g.name;
       const img = g.image || 'https://i.imgur.com/8Km9tLL.png';
       const imgEl = node.querySelector('.group-photo img');
@@ -249,9 +242,7 @@ function syncGroupGrid(){
     }
     next.push(node);
   });
-  // remove nós obsoletos
   existing.forEach(node => node.remove());
-  // monta DOM final
   grid.innerHTML = '';
   next.forEach(n => grid.appendChild(n));
   grid.appendChild(plusGroupCard());
@@ -273,7 +264,6 @@ async function loadTeachers(){
   (data.teachers||[]).forEach(t=>{
     const o=document.createElement('option'); o.value=t.id; o.textContent=t.name; sel.appendChild(o);
   });
-  // preferencia: URL -> localStorage -> primeiro da lista
   const fromUrl = qs('teacher');
   const saved = localStorage.getItem('teacherId');
   if (fromUrl && (data.teachers||[]).some(t=>t.id===fromUrl)) sel.value = fromUrl;
@@ -297,7 +287,6 @@ async function loadClasses(){
   if (!TEACHER) return;
   const data = await jsonp(`${API}?route=classes&teacher=${encodeURIComponent(TEACHER)}`);
   CLASSES = (data.classes || []).map(s=> (s||'').trim());
-  // seleciona: URL -> localStorage -> primeira
   const fromUrl = qs('class');
   if (fromUrl && CLASSES.includes(fromUrl)) setSelectedClass(fromUrl, false);
   else if (!CLASSES.includes(getSelectedClass())) setSelectedClass(CLASSES[0] || null, false);
@@ -309,9 +298,12 @@ async function createClass(name){
   if (!clean) return;
   const prog = showProgress('Criando classe…');
   try{
-    await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(clean)}`);
-    await loadClasses();
-    setSelectedClass(clean);
+    await jsonp(`${API}?route=createClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(clean)}`);
+    // otimista: se a API ainda não refletiu, já coloca no UI
+    if (!CLASSES.includes(clean)) CLASSES.push(clean);
+    setSelectedClass(clean, false);
+    syncClassGrid();
+    await loadClasses(); // garante refetch
     prog.done('Classe criada!');
   }catch(e){ prog.fail(e.message); }
 }
@@ -319,14 +311,14 @@ async function deleteClass(name){
   if (!confirm(`Excluir a classe "${name}"? Isso apagará grupos, alunos e pontuações.`)) return;
   const prog = showProgress('Excluindo classe…');
   try{
-    await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(name)}&confirm=yes`);
+    await jsonp(`${API}?route=deleteClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(name)}&confirm=yes`);
     await loadClasses(); await loadGroups(); await loadCategories();
     prog.done('Classe excluída!');
   }catch(e){ prog.fail(e.message); }
 }
 async function loadGroups(){
   if (!TEACHER || !getSelectedClass()){ GROUPS=[]; syncGroupGrid(); return; }
-  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
+  const data = await jsonp(`${API}?route=groups&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
   GROUPS = data.groups || [];
   el('classNameBadge').textContent = getSelectedClass() || '—';
   syncGroupGrid();
@@ -337,34 +329,33 @@ async function createGroup(name){
   const img = prompt('URL da foto do grupo (opcional):') || '';
   const prog = showProgress('Criando grupo…');
   try{
-    await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(clean)}&imageURL=${encodeURIComponent(img)}`);
+    await jsonp(`${API}?route=addGroup&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupName=${encodeURIComponent(clean)}&imageURL=${encodeURIComponent(img)}`);
     await loadGroups(); prog.done('Grupo criado!');
   }catch(e){ prog.fail(e.message); }
 }
 async function setStudents(groupId, names){
   const prog = showProgress('Salvando alunos…');
   try{
-    await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
+    await jsonp(`${API}?route=setStudents&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&students=${encodeURIComponent(JSON.stringify(names))}`);
     await loadGroups(); prog.done('Alunos salvos!');
   }catch(e){ prog.fail(e.message); }
 }
 async function removeStudent(groupId, name){
-  await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
+  await jsonp(`${API}?route=removeStudent&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&groupId=${encodeURIComponent(groupId)}&student=${encodeURIComponent(name)}`);
 }
 async function resetGroupsAll(){
   if (!confirm('Você já salvou em PDF? Isto apagará TODOS os grupos, alunos e pontuações desta classe.')) return;
   const prog = showProgress('Resetando grupos…');
   try{
-    await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
+    await jsonp(`${API}?route=resetClass&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&confirm=yes`);
     await loadGroups(); prog.done('Grupos resetados!');
   }catch(e){ prog.fail(e.message); }
 }
 async function loadCategories(){
   if (!TEACHER || !getSelectedClass()){ CATEGORIES=[]; INDIVIDUAL_ON=false; syncCatGrid(); return; }
-  const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}`);
+  const data = await jsonp(`${API}?route=categories&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}`);
   CATEGORIES = data.categories || [];
   INDIVIDUAL_ON = !!data.individualOn;
-  // evita disparar setIndividual ao atualizar UI
   suppressToggleEvent = true;
   el('toggleIndividual').checked = INDIVIDUAL_ON;
   setTimeout(()=>{ suppressToggleEvent = false; }, 0);
@@ -375,22 +366,22 @@ async function addCategory(name){
   if (!clean) return;
   const prog = showProgress('Criando categoria…');
   try{
-    await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
-    await loadCategories(); prog.done('Categoria criado!');
+    await jsonp(`${API}?route=addCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(clean)}`);
+    await loadCategories(); prog.done('Categoria criada!');
   }catch(e){ prog.fail(e.message); }
 }
 async function deleteCategory(name){
   if (!confirm(`Excluir a categoria "${name}"?`)) return;
   const prog = showProgress('Excluindo categoria…');
   try{
-    await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
+    await jsonp(`${API}?route=deleteCategory&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&name=${encodeURIComponent(name)}`);
     await loadCategories(); prog.done('Categoria excluída!');
   }catch(e){ prog.fail(e.message); }
 }
 async function setIndividual(on){
   const prog = showProgress('Salvando preferência…');
   try{
-    await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
+    await jsonp(`${API}?route=setIndividual&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(getSelectedClass())}&on=${on?'yes':'no'}`);
     INDIVIDUAL_ON = on; prog.done('Preferência salva!');
   }catch(e){ prog.fail(e.message); }
 }
@@ -424,19 +415,14 @@ el('toggleIndividual').addEventListener('change', (e)=>{
 el('goScore').addEventListener('click', ()=>{
   const c = getSelectedClass();
   if (!TEACHER || !c){ alert('Escolha professor e classe.'); return; }
-  // OBS: nome do arquivo é pontuacao.html
   window.location.href = `pontuacao.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(c)}`;
 });
 el('modalOk').addEventListener('click', ()=> el('progressModal').classList.add('hidden'));
 
 /* ===== Init ===== */
 (async function init(){
-  try{
-    await pingCheck();
-  }catch(e){
-    alert('Backend inacessível. Verifique API_BASE e permissões do Web App.\n\n' + e.message);
-    throw e;
-  }
+  try{ await pingCheck(); }
+  catch(e){ alert('Backend inacessível. Verifique API_BASE e permissões do Web App.\n\n' + e.message); throw e; }
   await loadTeachers();
   await loadClasses();
   await loadGroups();

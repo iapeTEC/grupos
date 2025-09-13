@@ -342,3 +342,42 @@ input:focus-visible, select:focus-visible{
 
 /* ==== Suavizações (sem piscar) ==== */
 .card, .class-card, .group-card{ transition: opacity .18s ease, box-shadow .15s ease; }
+
+/* Centralizar a área do toggle */
+.toggle-wrap.centered{
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* Texto das opções do toggle */
+.toggle-label{
+  display:flex;
+  gap: 14px;
+  font-size: 14px;
+  align-items:center;
+  justify-content: center; /* centraliza */
+}
+.toggle-label .left,
+.toggle-label .right{
+  transition: color .15s ease, font-weight .15s ease, opacity .15s ease;
+}
+
+/* Estado: grupo (esquerda ativa) */
+.toggle-label.mode-group .left{
+  color: #e6e7ea; font-weight: 700;
+}
+.toggle-label.mode-group .right{
+  color: #a2a8b3; opacity:.8; font-weight: 500;
+}
+
+/* Estado: individual (direita ativa) */
+.toggle-label.mode-individual .right{
+  color: #e6e7ea; font-weight: 700;
+}
+.toggle-label.mode-individual .left{
+  color: #a2a8b3; opacity:.8; font-weight: 500;
+}
+

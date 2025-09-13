@@ -51,20 +51,31 @@
     </div>
   </div>
 
+  <!-- Modal progresso -->
   <div class="modal hidden" id="progressModal"><div class="modal-box">
     <div class="modal-title" id="progressTitle">Processando…</div>
     <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
     <div class="modal-sub" id="progressSub">Aguarde um instante.</div>
   </div></div>
 
+  <!-- Modal confirmar overwrite -->
+  <div class="modal hidden" id="confirmModal"><div class="modal-box">
+    <div class="modal-title">Substituir pontuação?</div>
+    <div class="modal-sub" id="confirmText">Este grupo já tem uma pontuação.</div>
+    <div class="modal-actions">
+      <button class="btn" id="btnCancelOverwrite">Cancelar</button>
+      <button class="btn red" id="btnDoOverwrite">Substituir</button>
+    </div>
+  </div></div>
+
 <script>
-const API_BASE = 'https://script.google.com/macros/s/AKfycbzq9FNFIENdA7TLUj_SXs5G0ZZGCJ9IWDkhsBkt2iKL5CuM7sMCUDga8auyPz5pHk5_8A/exec';
+const API_BASE = 'https://script.google.com/macros/s/AKfycbx0Et7Mq2vuTvkS3yYIgpphpAJdsVhr8iDa_kCX8BW7v7TBJH7w3XDVd3cP4CNFqvLWRA/exec';
 const API = (API_BASE || '').trim().replace(/\s+/g,'');
 
 const el = id => document.getElementById(id);
 const qs = name => new URLSearchParams(location.search).get(name);
 
-function jsonp(url, {timeoutMs=12000} = {}){
+function jsonp(url, {timeoutMs=8000} = {}){
   return new Promise((resolve, reject)=>{
     const cb = 'cb_' + Math.random().toString(36).slice(2);
     const s = document.createElement('script');
@@ -89,6 +100,7 @@ const clamp10 = v => Math.max(0, Math.min(10, parseFloat(v)||0));
 const round2 = x => Math.round(x*100)/100;
 
 let TEACHER=null, CLASS=null, GROUPS=[], CATEGORIES=[], INDIVIDUAL_ON=false;
+let PENDING_SUBMIT = null; // guarda payload quando pede overwrite
 
 async function loadMeta(){
   TEACHER = qs('teacher'); CLASS = qs('class');
@@ -151,22 +163,54 @@ function compute(){
   const final = INDIVIDUAL_ON ? (avgCats + avgPres)/2 : avgCats;
   el('finalRound').textContent = round2(final);
 }
-async function submitScore(){
+
+async function trySubmit({replace}){
   const gid = el('groupSelect').value || (GROUPS[0] && GROUPS[0].id);
   if (!gid){ alert('Selecione um grupo.'); return; }
   const cats = Array.from(document.querySelectorAll('[data-cat]')).map(i=>({ name:i.dataset.cat, score: clamp10(i.value) }));
   const pres = Array.from(document.querySelectorAll('#studentsBox [data-pres]'))
     .map((inp, idx)=>({ student: el('studentsBox').children[idx*2].textContent, score: clamp10(inp.value) }))
     .filter(p=>!isNaN(p.score));
+
   const prog = showProgress('Salvando pontuação…');
   try{
-    const data = await jsonp(`${API}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}&groupId=${encodeURIComponent(gid)}&categoriesJSON=${encodeURIComponent(JSON.stringify(cats))}&presentations=${encodeURIComponent(JSON.stringify(pres))}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}`);
+    const url = `${API}?route=submitScore&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}&groupId=${encodeURIComponent(gid)}&categoriesJSON=${encodeURIComponent(JSON.stringify(cats))}&presentations=${encodeURIComponent(JSON.stringify(pres))}&submittedBy=${encodeURIComponent(el('teacherNameLocal').value||'')}&replace=${replace?'yes':'no'}`;
+    const data = await jsonp(url);
     prog.done();
     el('msg').innerHTML = data && data.ok ? `<span style="color:#22c55e">Salvo!</span>` : `<span style="color:#ef4444">Falha ao salvar.</span>`;
     document.querySelectorAll('#studentsBox [data-pres]').forEach(i=> i.value='');
     compute();
   }catch(e){ el('msg').innerHTML = `<span style="color:#ef4444">${e.message}</span>`; }
 }
+
+async function submitScore(){
+  const gid = el('groupSelect').value || (GROUPS[0] && GROUPS[0].id);
+  if (!gid){ alert('Selecione um grupo.'); return; }
+
+  // consulta se já existe pontuação
+  const info = await jsonp(`${API}?route=lastScore&teacher=${encodeURIComponent(TEACHER)}&klass=${encodeURIComponent(CLASS)}&groupId=${encodeURIComponent(gid)}`);
+  if (info && info.last){
+    // exibe modal de confirmação
+    el('confirmText').innerHTML = `
+      Este grupo <b>já foi pontuado</b> em <b>${info.last.timestamp}</b>.<br>
+      Última pontuação (rodada): <b>${(info.last.finalRound||0).toFixed(2)}</b>
+      ${info.last.presentationAvg ? ` • Média cat.: ${(info.last.avgCategories||0).toFixed(2)} • Média apr.: ${(info.last.presentationAvg||0).toFixed(2)}` : ``}
+      <br><br>Deseja <b>substituir</b> a última pontuação?`;
+    el('confirmModal').classList.remove('hidden');
+    PENDING_SUBMIT = { replace:true };
+  } else {
+    // não há anterior: grava direto
+    await trySubmit({replace:false});
+  }
+}
+
+el('btnCancelOverwrite').addEventListener('click', ()=>{ el('confirmModal').classList.add('hidden'); PENDING_SUBMIT=null; });
+el('btnDoOverwrite').addEventListener('click', async ()=>{
+  el('confirmModal').classList.add('hidden');
+  const opt = PENDING_SUBMIT || {replace:true};
+  PENDING_SUBMIT=null;
+  await trySubmit(opt);
+});
 
 el('groupSelect').addEventListener('change', ()=>{ renderStudentsForScore(); compute(); });
 el('submitScore').addEventListener('click', submitScore);

@@ -92,7 +92,7 @@ async function loadMeta(){
   TEACHER = qs('teacher'); CLASS = qs('class');
   if (!TEACHER || !CLASS){ alert('Parâmetros faltando.'); return; }
   el('crumbs').textContent = `Professor: ${TEACHER} • Classe: ${CLASS}`;
-  el('btnBack').onclick = ()=> location.href = `portal.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`;
+  el('btnBack').onclick = ()=> location.href = `login.html?teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`;
   const meta = await jsonp(`${API_BASE}?route=categories&teacher=${encodeURIComponent(TEACHER)}&class=${encodeURIComponent(CLASS)}`);
   CATEGORIES = meta.categories || []; INDIVIDUAL_ON = !!meta.individualOn;
   el('titleHead').textContent = `Pontuação — ${CLASS}`;

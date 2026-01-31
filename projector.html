@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Projetor — Votação SIM / NÃO</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <span>📊 Resultados</span>
+        <span class="badge" id="roundBadge">Rodada —</span>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center">
+        <span class="badge" id="statusBadge">Conectando…</span>
+        <button id="btnReset" class="btn ghost" style="width:auto">Resetar</button>
+      </div>
+    </div>
+
+    <div class="grid two">
+      <div class="card">
+        <div class="kpi">
+          <div class="num" id="totalNum">0</div>
+          <div class="lbl">Total de votos</div>
+          <span class="badge" id="updatedAt">—</span>
+        </div>
+
+        <div class="barsWrap" aria-label="Barras de votos">
+          <div class="barCard">
+            <div class="barLabel">
+              <b>SIM</b>
+              <span class="count" id="yesCount">0</span>
+            </div>
+            <div id="yesBar" class="bar yes" style="height:12%"></div>
+          </div>
+
+          <div class="barCard">
+            <div class="barLabel">
+              <b>NÃO</b>
+              <span class="count" id="noCount">0</span>
+            </div>
+            <div id="noBar" class="bar no" style="height:12%"></div>
+          </div>
+        </div>
+
+        <div class="small" style="margin-top:10px">
+          Dica: deixe esta tela aberta no projetor. Ela atualiza automaticamente.
+        </div>
+      </div>
+
+      <div class="card">
+        <h1 class="h1" style="margin-top:0">Controle rápido</h1>
+        <p class="small">O botão <b>Resetar</b> inicia uma nova rodada e zera os votos.</p>
+
+        <div class="grid" style="margin-top:12px">
+          <button class="btn accent" id="btnReset2">Resetar rodada</button>
+          <div class="card" style="background: rgba(0,0,0,.20)">
+            <div class="h2">Aviso</div>
+            <div class="small">
+              Para o reset funcionar, configure <b>ADMIN_KEY</b> em <code>assets/common.js</code>
+              (a mesma chave que você colocou no backend).
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast -->
+  
+<div id="toast" class="toast" role="status" aria-live="polite">
+  <span class="tag ok">OK</span>
+  <span class="msg">...</span>
+  <button class="btn ghost" onclick="document.getElementById('toast').classList.remove('show')">Fechar</button>
+</div>
+
+
+  <script src="./assets/common.js"></script>
+  <script>
+    let currentRound = 0;
+    let last = {sim:0, nao:0};
+
+    function setConnected(ok){
+      const b = document.getElementById("statusBadge");
+      b.textContent = ok ? "Online" : "Offline";
+      b.style.color = ok ? "var(--yes)" : "var(--no)";
+    }
+
+    function pctHeight(count, total){
+      // Minimum visible height
+      const min = 12;
+      if(total <= 0) return min;
+      const p = (count / total) * 100;
+      // Scale to 88% plus 12% base -> within 12..100
+      return min + (p * 0.88);
+    }
+
+    function updateBars(sim, nao){
+      const total = sim + nao;
+      document.getElementById("yesCount").textContent = sim;
+      document.getElementById("noCount").textContent = nao;
+      document.getElementById("totalNum").textContent = total;
+
+      document.getElementById("yesBar").style.height = pctHeight(sim, total) + "%";
+      document.getElementById("noBar").style.height = pctHeight(nao, total) + "%";
+    }
+
+    function updateMeta(s){
+      currentRound = Number(s.round || 0);
+      document.getElementById("roundBadge").textContent = "Rodada " + currentRound;
+      const ts = s.updated_at ? new Date(s.updated_at) : null;
+      document.getElementById("updatedAt").textContent = ts ? ("Atualizado: " + ts.toLocaleTimeString()) : "—";
+    }
+
+    async function poll(){
+      try{
+        const s = await apiStatus();
+        setConnected(true);
+        updateMeta(s);
+        const sim = Number(s.sim || 0);
+        const nao = Number(s.nao || 0);
+        updateBars(sim, nao);
+        last = {sim, nao};
+      }catch(e){
+        setConnected(false);
+      }
+    }
+
+    async function reset(){
+      try{
+        const r = await apiReset();
+        showToast("Resetado com sucesso! Rodada " + r.round, "ok");
+        await poll();
+      }catch(e){
+        showToast(e.message || "Falha ao resetar.", "err");
+      }
+    }
+
+    document.getElementById("btnReset").addEventListener("click", reset);
+    document.getElementById("btnReset2").addEventListener("click", reset);
+
+    poll();
+    setInterval(poll, CONFIG.POLL_MS);
+  </script>
+</body>
+</html>

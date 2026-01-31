@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Votação — SIM / NÃO</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <span>🗳️ Votação</span>
+        <span class="badge" id="roundBadge">Rodada —</span>
+      </div>
+      <span class="badge" id="statusBadge">Conectando…</span>
+    </div>
+
+    <div id="screenVote" class="card">
+      <h1 class="h1">Vote agora</h1>
+      <p class="small" id="hint">Toque em <b>SIM</b> ou <b>NÃO</b>. Seu voto vale uma vez por rodada.</p>
+
+      <div class="split" style="margin-top:14px">
+        <button id="btnYes" class="btn yes">✅ SIM</button>
+        <button id="btnNo" class="btn no">⛔ NÃO</button>
+      </div>
+
+      <div class="small" style="margin-top:12px">
+        Você pode sair e voltar quando quiser. Quando o professor resetar, você poderá votar de novo.
+      </div>
+    </div>
+
+    <div id="screenDone" class="center" style="display:none">
+      <div class="card" style="max-width:560px; width:100%">
+        <div class="check" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M9.0 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+        </div>
+        <h1 class="h1" style="margin-top:0">Voto confirmado!</h1>
+        <p class="small" id="doneMsg">
+          Obrigado. Aguarde a próxima rodada para votar novamente.
+        </p>
+        <button id="btnBack" class="btn accent" style="margin-top:10px">Voltar</button>
+      </div>
+    </div>
+
+    <div class="grid two" style="margin-top:14px">
+      <div class="card">
+        <div class="h2">Seu dispositivo</div>
+        <div class="small" id="deviceLine">—</div>
+      </div>
+      <div class="card">
+        <div class="h2">Regras rápidas</div>
+        <div class="small">
+          • 1 voto por celular por rodada<br/>
+          • A mesma rodada fica bloqueada após votar<br/>
+          • Ao resetar, começa uma rodada nova
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Toast -->
+  
+<div id="toast" class="toast" role="status" aria-live="polite">
+  <span class="tag ok">OK</span>
+  <span class="msg">...</span>
+  <button class="btn ghost" onclick="document.getElementById('toast').classList.remove('show')">Fechar</button>
+</div>
+
+
+  <script src="./assets/common.js"></script>
+  <script>
+    let currentRound = 0;
+    let statusTimer = null;
+
+    function setConnected(ok){
+      const b = document.getElementById("statusBadge");
+      b.textContent = ok ? "Online" : "Offline";
+      b.style.color = ok ? "var(--yes)" : "var(--no)";
+    }
+
+    function updateUIFromStatus(s){
+      currentRound = Number(s.round || 0);
+      document.getElementById("roundBadge").textContent = "Rodada " + currentRound;
+      document.getElementById("deviceLine").textContent = "ID: " + getDeviceId();
+
+      const already = lastVotedRound() === currentRound;
+      document.getElementById("btnYes").disabled = already;
+      document.getElementById("btnNo").disabled = already;
+
+      const hint = document.getElementById("hint");
+      if(already){
+        hint.innerHTML = "✅ Você <b>já votou</b> nesta rodada. Aguarde o reset para votar de novo.";
+      }else{
+        hint.innerHTML = "Toque em <b>SIM</b> ou <b>NÃO</b>. Seu voto vale uma vez por rodada.";
+      }
+    }
+
+    async function poll(){
+      try{
+        const s = await apiStatus();
+        setConnected(true);
+        updateUIFromStatus(s);
+      }catch(e){
+        setConnected(false);
+      }
+    }
+
+    function showDone(choice){
+      document.getElementById("screenVote").style.display = "none";
+      document.getElementById("screenDone").style.display = "flex";
+      const msg = document.getElementById("doneMsg");
+      msg.textContent = "Registramos seu voto (" + (choice === "sim" ? "SIM" : "NÃO") + "). Aguarde a próxima rodada.";
+    }
+    function showVote(){
+      document.getElementById("screenDone").style.display = "none";
+      document.getElementById("screenVote").style.display = "block";
+    }
+
+    async function vote(choice){
+      if(lastVotedRound() === currentRound){
+        showToast("Você já votou nesta rodada.", "err");
+        return;
+      }
+      try{
+        document.getElementById("btnYes").disabled = true;
+        document.getElementById("btnNo").disabled = true;
+        const res = await apiVote(choice, currentRound);
+        setLastVotedRound(currentRound);
+        showToast("Voto enviado!", "ok");
+        showDone(choice);
+      }catch(e){
+        showToast(e.message || "Falha ao votar.", "err");
+        // re-enable if still eligible
+        const eligible = lastVotedRound() !== currentRound;
+        document.getElementById("btnYes").disabled = !eligible;
+        document.getElementById("btnNo").disabled = !eligible;
+      }
+    }
+
+    document.getElementById("btnYes").addEventListener("click", ()=>vote("sim"));
+    document.getElementById("btnNo").addEventListener("click", ()=>vote("nao"));
+    document.getElementById("btnBack").addEventListener("click", ()=>{
+      showVote();
+      poll();
+    });
+
+    // Boot
+    poll();
+    statusTimer = setInterval(poll, CONFIG.POLL_MS);
+  </script>
+</body>
+</html>

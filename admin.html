@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Reset de Votação</title>
+  <link rel="stylesheet" href="./assets/app.css" />
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <div class="brand">
+        <span>🔐 Admin</span>
+        <span class="badge" id="roundBadge">Rodada —</span>
+      </div>
+      <span class="badge" id="statusBadge">Conectando…</span>
+    </div>
+
+    <div class="grid two">
+      <div class="card">
+        <h1 class="h1" style="margin-top:0">Resetar rodada</h1>
+        <p class="small">
+          Clique para zerar os votos e iniciar uma nova rodada.
+          Os alunos poderão votar novamente quando a rodada mudar.
+        </p>
+        <button id="btnReset" class="btn accent" style="margin-top:12px">Resetar agora</button>
+
+        <div class="small" style="margin-top:12px">
+          Resultado: <b id="resultLine">—</b>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="h2">Status atual</div>
+        <div class="kpi">
+          <div class="num" id="totalNum">0</div>
+          <div class="lbl">Total de votos</div>
+          <span class="badge" id="updatedAt">—</span>
+        </div>
+
+        <div class="grid" style="margin-top:10px">
+          <div class="card" style="background: rgba(0,0,0,.20)">
+            <div class="small"><b>SIM:</b> <span id="yesCount">0</span></div>
+            <div class="small"><b>NÃO:</b> <span id="noCount">0</span></div>
+          </div>
+
+          <button id="btnRefresh" class="btn ghost">Atualizar status</button>
+        </div>
+
+        <div class="small" style="margin-top:10px">
+          Para evitar que qualquer aluno resete, deixe a chave forte (ADMIN_KEY) só com você.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  
+<div id="toast" class="toast" role="status" aria-live="polite">
+  <span class="tag ok">OK</span>
+  <span class="msg">...</span>
+  <button class="btn ghost" onclick="document.getElementById('toast').classList.remove('show')">Fechar</button>
+</div>
+
+
+  <script src="./assets/common.js"></script>
+  <script>
+    function setConnected(ok){
+      const b = document.getElementById("statusBadge");
+      b.textContent = ok ? "Online" : "Offline";
+      b.style.color = ok ? "var(--yes)" : "var(--no)";
+    }
+
+    function updateUI(s){
+      const round = Number(s.round || 0);
+      document.getElementById("roundBadge").textContent = "Rodada " + round;
+      const sim = Number(s.sim || 0);
+      const nao = Number(s.nao || 0);
+      const total = sim + nao;
+      document.getElementById("yesCount").textContent = sim;
+      document.getElementById("noCount").textContent = nao;
+      document.getElementById("totalNum").textContent = total;
+      const ts = s.updated_at ? new Date(s.updated_at) : null;
+      document.getElementById("updatedAt").textContent = ts ? ("Atualizado: " + ts.toLocaleTimeString()) : "—";
+    }
+
+    async function refresh(){
+      try{
+        const s = await apiStatus();
+        setConnected(true);
+        updateUI(s);
+        document.getElementById("resultLine").textContent = "Status carregado.";
+      }catch(e){
+        setConnected(false);
+        document.getElementById("resultLine").textContent = "Falha ao carregar status.";
+        showToast(e.message || "Falha.", "err");
+      }
+    }
+
+    async function reset(){
+      try{
+        const r = await apiReset();
+        document.getElementById("resultLine").textContent = "Resetado com sucesso. Rodada " + r.round;
+        showToast("Resetado! Rodada " + r.round, "ok");
+        updateUI(r);
+      }catch(e){
+        document.getElementById("resultLine").textContent = "Erro: " + (e.message || "Falha.");
+        showToast(e.message || "Falha ao resetar.", "err");
+      }
+    }
+
+    document.getElementById("btnReset").addEventListener("click", reset);
+    document.getElementById("btnRefresh").addEventListener("click", refresh);
+
+    refresh();
+  </script>
+</body>
+</html>

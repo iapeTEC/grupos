@@ -5,8 +5,8 @@
  * CONFIG: change BACKEND_URL and ADMIN_KEY below.
  */
 const CONFIG = {
-  BACKEND_URL: "PASTE_YOUR_GAS_WEBAPP_URL_HERE",   // e.g. https://script.google.com/macros/s/XXXX/exec
-  ADMIN_KEY: "CHANGE_ME_ADMIN_KEY",                // choose a strong key (used only for reset)
+  BACKEND_URL: "https://script.google.com/macros/s/AKfycbw4OaifPqaN2GGRTX5e9L8DjtNJtc2fWbCr3AF_ar6u30jEK13nx6WjVikNLfon_FUM/exec",   // e.g. https://script.google.com/macros/s/XXXX/exec
+  ADMIN_KEY: "MzAk9do3@.@",                // choose a strong key (used only for reset)
   POLL_MS: 900
 };
 
